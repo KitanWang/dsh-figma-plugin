@@ -30,7 +30,9 @@
     "cordis.patch.yml",
     "README.md",
     "README.zh.md",
-    "LICENSE"
+    "LICENSE",
+    "SECURITY.md",
+    "REVIEW-SUBMISSION.md"
   ],
   "exports": {
     ".": {

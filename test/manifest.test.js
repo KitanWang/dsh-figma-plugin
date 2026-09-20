@@ -108,3 +108,21 @@ test('the patch file parses and inserts a row with the expected id', () => {
   assert.match(patch, /^- insert:/m, 'the patch is a top-level insert list');
   assert.match(patch, /id: figma\b/, 'the row keeps the stable id `figma`');
 });
+
+test('the published docs a reviewer or consumer needs are present', () => {
+  // The security policy is where the shipped-secret tradeoff is disclosed, so
+  // its absence would leave that unexplained for anyone auditing the package.
+  // Compare on normalized whitespace: markdown wraps mid-sentence, and the
+  // assertion is about what the document says, not where its lines break.
+  const flatten = (text) => text.replace(/\s+/g, ' ');
+  assert.match(flatten(read('SECURITY.md')), /secret .* is public by construction/);
+  assert.ok(read('REVIEW-SUBMISSION.md').includes('Redirect URLs'));
+  // The icon the OAuth app must supply.
+  assert.ok(existsSync(new URL('assets/icon-512.png', root)));
+});
+
+test('the README is honest about the shipped secret and the scope limits', () => {
+  const readme = read('README.md');
+  assert.match(readme, /secret is public/i, 'the shipped-secret tradeoff must be stated');
+  assert.match(readme, /Enterprise/i, 'the Enterprise-only variable scope must be explained');
+});
