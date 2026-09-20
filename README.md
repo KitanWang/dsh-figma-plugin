@@ -19,11 +19,16 @@ the same and what is different.
 
 ## Install
 
+Installs straight from GitHub — no registry publish needed:
+
 ```sh
-dsh plugin --profile web add dsh-figma-plugin
+dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
 ```
 
 Then restart `dsh web` (a newly added bundle is composed at boot).
+
+Requires Node.js 20+ and DeepSeek Harness. If the plugin is published to npm
+later, `dsh plugin --profile web add dsh-figma-plugin` will work too.
 
 ## Connect Figma
 

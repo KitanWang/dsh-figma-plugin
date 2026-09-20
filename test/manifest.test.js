@@ -60,9 +60,18 @@ test('the files list is what a consumer actually needs, and nothing private', ()
   for (const forbidden of ['node_modules', '.git', '.env', 'test', 'assets/.cache']) {
     assert.equal(files.includes(forbidden), false, `${forbidden} must not ship`);
   }
-  // The install command in the docs has to name the package users install.
+  // The docs must show an install command that works *today*. The package is
+  // not on npm, so a bare `add <name>` would fail for every reader; the GitHub
+  // form is what resolves.
+  const repo = /github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/.exec(pkg.repository.url)?.[1];
+  assert.ok(repo !== undefined, 'the repository owner/name must be parseable');
   for (const doc of ['README.md', 'README.zh.md']) {
-    assert.ok(read(doc).includes(`add ${pkg.name}`), `${doc} must show the real install command`);
+    const text = read(doc);
+    assert.ok(
+      text.includes(`add github:${repo}`),
+      `${doc} must show the GitHub install command, which works before any npm publish`,
+    );
+    assert.ok(text.includes(`add ${pkg.name}`), `${doc} must also name the package`);
   }
 });
 

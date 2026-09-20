@@ -16,11 +16,16 @@
 
 ## 安装
 
+直接从 GitHub 安装，无需发布到 npm：
+
 ```sh
-dsh plugin --profile web add dsh-figma-plugin
+dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
 ```
 
 然后重启 `dsh web`（新增的 bundle 在启动时合成）。
+
+需要 Node.js 20+ 与 DeepSeek Harness。若之后发布到 npm，
+`dsh plugin --profile web add dsh-figma-plugin` 同样可用。
 
 ## 连接 Figma
 
