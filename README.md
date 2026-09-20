@@ -44,8 +44,8 @@ inside a plugin. Creating one is a one-time, two-minute step:
    content, comments, dev resources, variables, library content). Add
    `file_comments:write` if you want `figma_post_comment`.
 4. Paste the app's **Client ID** and **Client Secret** into the panel and press
-   Connect. Your browser opens Figma's consent screen, and the panel flips to
-   *Connected* when you approve.
+   **Save and connect**. Your browser opens Figma's consent screen, and the panel
+   flips to *Connected* when you approve.
 
 The Client ID is stored in the harness settings document; the Client Secret goes
 to the credential store (`$DSH_HOME/.credentials.yaml`), never to settings and
@@ -209,7 +209,7 @@ no running Figma desktop:
 | Design tokens | via MCP `get_variable_defs` | `figma_get_variables` (modes + alias resolution + CSS/JSON export) |
 | Code Connect | MCP + Figma CLI | skill guides template generation; publish with the Figma CLI |
 | Write back to canvas | Yes (MCP + Plugin API) | **No** — see below |
-| Setup | install plugin, authorize Figma | install plugin, register one OAuth app, click Connect |
+| Setup | install plugin, authorize Figma | install plugin, register one OAuth app, click **Save and connect** |
 
 ### Why you register your own OAuth app
 
@@ -268,7 +268,7 @@ of your own.
 ## Development
 
 ```sh
-npm test                        # 97 unit + integration tests, no network
+npm test                        # 113 unit + integration tests, no network
 node scripts/smoke.mjs          # mount in a real Cordis context; assert registration
 node scripts/routes-smoke.mjs   # drive the OAuth routes against a real WebServer
 ```

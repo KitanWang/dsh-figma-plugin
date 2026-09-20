@@ -18,14 +18,38 @@ dsh plugin --profile web add dsh-figma
 
 然后重启 `dsh web`（新增的 bundle 在启动时合成）。
 
-## 配置 Token
+## 连接 Figma
 
-需要一个 Figma 个人访问令牌（Personal Access Token）。在
-**Figma → Settings → Security → Personal access tokens** 创建
-（<https://www.figma.com/developers/api#access-tokens>），至少勾选
-`File content: read` 权限。
+打开 **设置 → Figma**（左侧栏底部「设置」按钮旁边也有一个 Figma 状态按钮，点开是同一个面板）。
+面板会显示连接状态、已授权账号、令牌有效期，并提供「连接 / 重新授权 / 断开连接」。
 
-下面三种方式任选其一，按此顺序查找：
+Figma 要求每个集成自带 **自己的 OAuth 应用**：换取令牌时必须用 Client Secret 做认证，
+而 Secret 无法随插件分发。创建一次即可长期使用，大约两分钟：
+
+1. 打开 <https://www.figma.com/developers/apps>，**Create a new app**。归属哪个团队/组织都可以；
+   保持 **private（私有）** 即可，私有应用不需要 Figma 审核。
+2. 在该应用的 **OAuth credentials** 页面添加面板中显示的重定向地址。它形如
+   `http://127.0.0.1:3080/figma/oauth/callback`，**必须完全一致，包括端口**。
+3. 在 **OAuth scopes** 页面勾选面板列出的读取权限（文件内容、评论、开发资源、变量、团队库内容）。
+   如需使用 `figma_post_comment`，再勾上 `file_comments:write`。
+4. 把应用的 **Client ID** 与 **Client Secret** 填进面板并点击「保存并连接」。浏览器会打开 Figma
+   授权页，你同意后，面板会变成「已连接」。
+
+Client ID 存入 Harness 设置文档；Client Secret 存入凭据库
+（`$DSH_HOME/.credentials.yaml`），**不会写入设置文件，也不会回传给浏览器**。
+授权得到的 access/refresh token 以凭据 *record* 形式保存，access token 到期前会自动续期。
+
+也可以直接让 Agent 代劳：
+
+> 连接 Figma。
+
+Agent 会调用 `figma_login`，返回一个授权链接让你在浏览器打开。Agent 不会要求你在对话里粘贴 Token。
+
+### 个人访问令牌（PAT）
+
+PAT 依然可用，而且是无头运行、CI 与脚本场景的正确选择 —— 它没有浏览器环节。
+已有可用的 PAT 时，OAuth 配置向导会显示为「可选升级」而不是必需步骤。
+没有 OAuth 授权记录时，按此顺序查找 PAT：
 
 1. 插件配置里的 `accessToken`
 2. Harness 凭据库中的 `FIGMA_ACCESS_TOKEN` 或 `FIGMA_TOKEN`
@@ -36,9 +60,9 @@ export FIGMA_ACCESS_TOKEN=figd_xxx
 dsh web
 ```
 
-验证是否生效：
-
-> 让 Agent 调用 `figma_whoami`。
+在 **Figma → Settings → Security → Personal access tokens**
+（<https://www.figma.com/developers/api#access-tokens>）创建。与 OAuth 授权不同，
+PAT 无法自动续期，有效期按 Figma 的策略。
 
 想显式写配置，就在 profile 的 `cordis.patch.yml`
 （`~/.dsh/profiles/web/cordis.patch.yml`）里按 id 覆盖那一行：
@@ -159,7 +183,7 @@ DSH 有同样的**原语** —— 技能注册表（`ctx.skills`）、工具注�
 | 设计 Token | 走 MCP 的 `get_variable_defs` | `figma_get_variables`（多模式 + 别名解析 + CSS/JSON 导出） |
 | Code Connect | MCP + Figma CLI | 技能指导生成模板；用 Figma CLI 发布 |
 | 写回画布 | 支持（MCP + Plugin API） | **不支持** —— 见下 |
-| 上手成本 | 装插件、授权 Figma | 装插件、注册一个 OAuth 应用、点「连接」 |
+| 上手成本 | 装插件、授权 Figma | 装插件、注册一个 OAuth 应用、点「保存并连接」 |
 
 ### 为什么要自己注册 OAuth 应用
 
@@ -209,7 +233,7 @@ MCP 桥的 HTTP 传输只支持自定义 header，没有 OAuth 流程，
 ## 开发
 
 ```sh
-npm test                        # 97 个单元 + 集成测试，不联网
+npm test                        # 113 个单元 + 集成测试，不联网
 node scripts/smoke.mjs          # 在真实 Cordis 上下文中挂载并断言注册结果
 node scripts/routes-smoke.mjs   # 对着真实 WebServer 跑一遍 OAuth 路由
 ```
