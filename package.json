@@ -1,6 +1,6 @@
 {
   "name": "dsh-figma",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Figma design context for DeepSeek Harness: read frames, components, variables and screenshots straight from the Figma REST API, plus bundled design-to-code skills. · 让 DSH 直接读懂 Figma 设计稿。",
   "type": "module",
   "main": "lib/index.js",
@@ -37,6 +37,10 @@
       "default": "./lib/index.js"
     },
     "./client": "./lib/client.js",
+    "./rest": "./lib/rest.js",
+    "./oauth": "./lib/oauth.js",
+    "./auth": "./lib/auth.js",
+    "./routes": "./lib/routes.js",
     "./figma-url": "./lib/figma-url.js",
     "./simplify": "./lib/simplify.js",
     "./tokens": "./lib/tokens.js",
@@ -46,11 +50,21 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
     }
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs && node scripts/routes-smoke.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-host-webserver": "^0.1.5-rc.2"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
@@ -65,6 +79,9 @@
       "optional": true
     },
     "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-settings": {
       "optional": true
     },
     "@deepseek-ai/dsh-skill": {

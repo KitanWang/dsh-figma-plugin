@@ -43,6 +43,7 @@ const expected = [
   'figma_get_screenshot',
   'figma_get_styles',
   'figma_get_variables',
+  'figma_login',
   'figma_post_comment',
   'figma_whoami',
 ];
