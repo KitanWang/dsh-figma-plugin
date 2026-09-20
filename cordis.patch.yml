@@ -1,0 +1,22 @@
+# dsh-figma bundle patch: inserts this plugin into a profile's layer stack.
+#
+# Installing the package through the official CLI —
+#
+#   dsh plugin --profile web add dsh-figma
+#
+# — appends `dsh-figma` to `dsh.profile.bundles`, and the profile boot merges
+# this patch (a single `insert` of the plugin row) like any other layer. The
+# profile's own cordis.patch.yml is applied *after* every bundle layer, so it
+# is the right place to override config by targeting `id: figma`:
+#
+#   - id: figma
+#     config:
+#       accessToken: !!js process.env.FIGMA_ACCESS_TOKEN
+#       outputDir: .figma
+#
+# Every config key is optional: with no config at all the plugin resolves the
+# token from `FIGMA_ACCESS_TOKEN` / `FIGMA_TOKEN` (environment or the harness
+# credential store) and writes rendered exports to `<cwd>/.dsh-figma`.
+- insert:
+    - id: figma
+      name: 'dsh-figma'
