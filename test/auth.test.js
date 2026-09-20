@@ -57,7 +57,6 @@ function config(overrides = {}) {
     tokenUrl: 'https://api.figma.com/v1/oauth/token',
     refreshUrl: 'https://api.figma.com/v1/oauth/refresh',
     scopes: 'file_content:read',
-    callbackPort: 0,
     redirectUri: '',
     callbackPath: '/figma/oauth/callback',
     ...overrides,
@@ -301,9 +300,12 @@ test('status reports connection state without any credential material', async ()
     assert.equal(serialized.includes(secret), false, `${secret} must never reach the browser`);
   }
   // Nor may the response advertise credential concepts the UI no longer has.
-  for (const key of ['clientId', 'clientSecretSet', 'expiresAt', 'tokenSource', 'mode', 'scopes', 'redirectUri', 'personalAccessToken']) {
+  for (const key of ['clientId', 'clientSecretSet', 'expiresAt', 'tokenSource', 'mode', 'scopes', 'personalAccessToken']) {
     assert.equal(key in status, false, `status must not expose ${key} any more`);
   }
+  // The one URL that is reported is the public callback address: it is not a
+  // credential, and it is the only way to diagnose a non-default GUI port.
+  assert.equal(status.redirectUri, 'http://127.0.0.1:3080/figma/oauth/callback');
 });
 
 test('status reports a deployment with no OAuth client as unavailable', async () => {

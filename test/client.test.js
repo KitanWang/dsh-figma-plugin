@@ -18,6 +18,10 @@ import { test } from 'node:test';
 
 const SOURCE = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8');
 
+/** The npm package name. The loader resolves a browser bundle by exactly this
+ * string, so the bundle's registration id and the manifest must never drift. */
+const PACKAGE_NAME = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).name;
+
 /** A minimal React stand-in with the hooks the bundle uses. */
 function createReact() {
   const hookStack = [];
@@ -185,9 +189,11 @@ test("the bundle requires only modules the client seed table provides", () => {
   for (const spec of requires) assert.ok(seed.has(spec), `require("${spec}") has no module source in a packaged bundle`);
 });
 
-test("the bundle registers under its package name", () => {
+test("the bundle registers under its npm package name", () => {
+  // client-modules matches a served bundle to its graph row by this id, so a
+  // rename that misses lib/client.js silently breaks the whole browser half.
   const match = /__ModuleLoader__\.load\(\{\s*id:\s*"([^"]+)"/.exec(SOURCE);
-  assert.equal(match?.[1], "dsh-figma");
+  assert.equal(match?.[1], PACKAGE_NAME);
 });
 
 test("the page injects a theme-token stylesheet", () => {
@@ -352,4 +358,21 @@ test("the page renders while the first status is still loading", () => {
   // No refresh: the snapshot is still loading, which must not crash the shell.
   const result = render(React, React.createElement(registration.component, registration.injected), {});
   assert.match(result.text, /Checking the connection/);
+});
+
+test("the waiting state shows the callback URL so a port mismatch is diagnosable", async () => {
+  const payload = status({ pending: { state: "abc", status: "pending", startedAt: Date.now() } });
+  payload.redirectUri = "http://127.0.0.1:8080/figma/oauth/callback";
+  const { text } = await renderPage(payload);
+  // Figma matches redirect URLs verbatim; without this the only symptom is an
+  // error on Figma's own page, with nothing to compare against.
+  assert.match(text, /http:\/\/127\.0\.0\.1:8080\/figma\/oauth\/callback/);
+  assert.match(text, /Current callback URL/);
+});
+
+test("the connected page does not surface the callback URL as chrome", async () => {
+  // It is troubleshooting information, not part of the normal connected view.
+  const { text } = await renderPage(status({ connected: true, account: { verified: true, handle: "d" } }));
+  assert.doesNotMatch(text, /Current callback URL/);
+  assert.doesNotMatch(text, /oauth\/callback/);
 });

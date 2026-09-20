@@ -71,10 +71,15 @@ const statusBody = await status.json();
 check(status.status === 200, `GET /figma/api/v1/status returned ${status.status}`);
 check(statusBody.connected === false, 'a fresh connection should report not-connected');
 check(statusBody.available === true, 'a build with an OAuth client should report sign-in as available');
-// The browser contract is state only: no credential may ride along.
+// The browser contract is state plus the callback URL the user must register —
+// and no credential may ride along.
 check(
-  Object.keys(statusBody).sort().join(',') === 'available,connected,pending',
-  `the status payload must expose state only, got ${Object.keys(statusBody).join(',')}`,
+  Object.keys(statusBody).sort().join(',') === 'available,connected,pending,redirectUri',
+  `the status payload must expose the documented keys only, got ${Object.keys(statusBody).join(',')}`,
+);
+check(
+  statusBody.redirectUri === `${origin}/figma/oauth/callback`,
+  `the callback URL must use the live GUI port, got ${statusBody.redirectUri}`,
 );
 const statusText = JSON.stringify(statusBody);
 for (const forbidden of ['stored-secret', 'smoke-client-secret']) {
@@ -125,7 +130,7 @@ if (failures.length > 0) {
 }
 
 console.log(`route smoke passed: web server on ${origin}`);
-console.log(`  GET  /figma/api/v1/status        → connected=${statusBody.connected}, available=${statusBody.available}, state-only payload`);
+console.log(`  GET  /figma/api/v1/status        → connected=${statusBody.connected}, available=${statusBody.available}, callback URL on the live port`);
 console.log(`  POST /figma/api/v1/connect       → Figma authorization URL with state + PKCE`);
 console.log(`  POST /figma/api/v1/connect (evil) → 403`);
 console.log(`  GET  /figma/oauth/callback (forged state) → 400 with a rendered page`);

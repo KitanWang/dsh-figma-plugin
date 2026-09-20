@@ -12,7 +12,6 @@
 #   - id: figma
 #     config:
 #       outputDir: .figma
-#       callbackPort: 3080
 #
 # Every config key is optional, and none is needed for sign-in to work: the
 # plugin carries its own Figma OAuth app and writes rendered exports to
@@ -21,10 +20,9 @@
 #
 # Keys worth setting in a deployment:
 #
-#   callbackPort: 3080        # 0 (default) follows the live GUI port. Figma
-#                             # matches redirect URLs exactly, so a GUI on a
-#                             # port the OAuth app has not registered must pin
-#                             # this instead.
+#   redirectUri: ...          # only behind a reverse proxy; the default is the
+#                             # live GUI callback, and the route lives on that
+#                             # same server.
 #   connectionRoutes: true    # false = tools only, no HTTP surface, no sign-in
 #   outputDir: .figma         # where screenshots and exports land
 #

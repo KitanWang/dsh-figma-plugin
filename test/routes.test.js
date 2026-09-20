@@ -141,7 +141,7 @@ test('the status route reports the connection without leaking secrets', async ()
   assert.equal(response.text.includes('top-secret'), false);
   assert.equal(response.text.includes('builtin-secret'), false);
   // The payload is the whole browser contract: state only.
-  assert.deepEqual(Object.keys(response.json).sort(), ['available', 'connected', 'pending']);
+  assert.deepEqual(Object.keys(response.json).sort(), ['available', 'connected', 'pending', 'redirectUri']);
 });
 
 test('the connect route reports the authorization URL when the origin matches', async () => {

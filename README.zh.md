@@ -1,4 +1,6 @@
-# dsh-figma
+# dsh-figma-plugin
+
+<img src="assets/icon-256.png" width="96" alt="一个选中框里叠放着内容层">
 
 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 用的 Figma 设计上下文插件。
 [English](README.md) | 中文
@@ -15,7 +17,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add dsh-figma
+dsh plugin --profile web add dsh-figma-plugin
 ```
 
 然后重启 `dsh web`（新增的 bundle 在启动时合成）。
@@ -53,7 +55,6 @@ Harness 凭据库（`$DSH_HOME/.credentials.yaml`）里，access token 到期前
 - id: figma
   config:
     outputDir: .figma
-    callbackPort: 3080
 ```
 
 ## 工具一览
@@ -108,7 +109,6 @@ Agent 会调用 `figma_get_design_context`，读大纲和截图，先看仓库�
 | `maxDepth` | `8` | 默认深度预算。 |
 | `skills` | `true` | 是否注册内置技能。 |
 | `scopes` | 见下 | 授权时申请的权限范围，空格分隔。 |
-| `callbackPort` | `0` | 重定向地址里声明的端口。`0` 表示跟随 GUI 实际端口。 |
 | `redirectUri` | `''` | 重定向地址覆盖值；必须与 Figma 应用配置完全一致。只接受回环地址。 |
 | `callbackPath` | `/figma/oauth/callback` | 追加到重定向地址后的回调路径。 |
 | `connectionRoutes` | `true` | 是否提供 OAuth 回调与连接页。关闭后只注册工具，不暴露任何 HTTP 接口。 |
@@ -140,7 +140,8 @@ http://127.0.0.1:3080/figma/oauth/callback
 http://localhost:3080/figma/oauth/callback
 ```
 
-如果 GUI 跑在别的端口，要么在该应用上登记那个端口，要么固定 `callbackPort`。
+如果 GUI 跑在别的端口，该端口的回调地址也需要登记到 OAuth 应用上 —— Figma 精确匹配
+重定向地址；授权进行中时，连接页会显示需要登记的确切地址。
 
 ### 无头与纯工具部署
 
@@ -233,8 +234,9 @@ MCP 桥的 HTTP 传输只支持自定义 header，没有 OAuth 流程，
   纯工具组合仍会注册工具，但无法登录，并且会明确说明。
 - **内置的 OAuth Secret 是公开的。** 任何安装此包的人都能读到。它只授予上面列出的权限范围，
   部署可以通过配置项或环境变量换成自己的客户端来轮换。
-- **重定向端口必须已登记。** Figma 精确匹配重定向地址，所以跑在未登记端口上的 GUI
-  必须先把该端口加进应用，或用 `callbackPort` 固定，否则无法完成登录。
+- **重定向端口必须已登记。** Figma 精确匹配重定向地址，而回调路由就跑在 GUI 自己的
+  server 上，所以用 `--port` 启动的 GUI 必须先把该端口的回调地址加进 OAuth 应用才能完成
+  登录。授权进行中时，连接页会显示需要登记的确切地址。
 
 ## 开发
 

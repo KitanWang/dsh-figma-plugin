@@ -1,4 +1,6 @@
-# dsh-figma
+# dsh-figma-plugin
+
+<img src="assets/icon-256.png" width="96" alt="A selection frame holding stacked layers">
 
 Figma design context for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 English | [中文](README.zh.md)
@@ -18,7 +20,7 @@ the same and what is different.
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-figma
+dsh plugin --profile web add dsh-figma-plugin
 ```
 
 Then restart `dsh web` (a newly added bundle is composed at boot).
@@ -70,7 +72,6 @@ To set config explicitly, target the row by id in the profile's
 - id: figma
   config:
     outputDir: .figma
-    callbackPort: 3080
 ```
 
 ## Tools
@@ -127,7 +128,6 @@ All keys are optional.
 | `maxDepth` | `8` | Default depth budget. |
 | `skills` | `true` | Register the bundled skills. |
 | `scopes` | see below | Space-separated OAuth scopes requested at authorization. |
-| `callbackPort` | `0` | Port advertised in the redirect URL. `0` follows the live GUI port. |
 | `redirectUri` | `''` | Absolute redirect URI override; must match the Figma app exactly. Only loopback URLs are accepted. |
 | `callbackPath` | `/figma/oauth/callback` | Callback path appended to the redirect URI. |
 | `connectionRoutes` | `true` | Serve the OAuth callback and connection page. Off means tools-only, with no HTTP surface. |
@@ -163,8 +163,9 @@ http://127.0.0.1:3080/figma/oauth/callback
 http://localhost:3080/figma/oauth/callback
 ```
 
-If the GUI runs on another port, register that port on the app or pin
-`callbackPort`.
+If the GUI runs on another port, that port's callback URL must be registered on
+the OAuth app too — Figma matches redirect URLs exactly, and the connection page
+shows the exact URL to register while an authorization is pending.
 
 ### Tools-only deployments
 
@@ -280,9 +281,11 @@ of your own.
 - **The shipped OAuth secret is public.** Anyone who installs the package can
   read it. It grants only the scopes listed above, and a deployment can rotate
   it by supplying its own client in config or the environment.
-- **The redirect port must be registered.** Figma matches redirect URLs exactly,
-  so a GUI on an unregistered port cannot complete sign-in until that port is
-  added to the app or pinned with `callbackPort`.
+- **The redirect port must be registered.** Figma matches redirect URLs exactly
+  and the callback route lives on the GUI's own server, so a GUI launched with
+  `--port` cannot complete sign-in until that port's callback URL is added to
+  the OAuth app. The connection page prints the exact URL to add while an
+  authorization is pending.
 
 ## Development
 

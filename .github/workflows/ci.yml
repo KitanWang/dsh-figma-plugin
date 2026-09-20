@@ -1,0 +1,55 @@
+name: ci
+
+# The plugin has no build step, so CI is just the two guarantees a consumer
+# depends on: the unit suite, and a real mount against the harness services.
+# Both run on the oldest supported Node and the current LTS, because the plugin
+# relies on platform features (fetch, AbortSignal.any) that moved across those
+# versions.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # devDependencies carry every harness package the tests mount against.
+      # They are also optional peers, because at runtime the consumer's profile
+      # already provides them.
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Mount against the real harness services
+        run: npm run smoke
+
+  icon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      # The icon is generated, so a committed PNG that no longer matches the
+      # script means someone edited the binary by hand.
+      - name: Regenerate the icon and check it is unchanged
+        run: |
+          python3 scripts/generate-icon.py assets/icon-512.png 512
+          git diff --exit-code -- assets/icon-512.png

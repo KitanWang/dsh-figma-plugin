@@ -1,5 +1,5 @@
 {
-  "name": "dsh-figma",
+  "name": "dsh-figma-plugin",
   "version": "0.3.2",
   "description": "Figma design context for DeepSeek Harness: read frames, components, variables and screenshots straight from the Figma REST API, plus bundled design-to-code skills. · 让 DSH 直接读懂 Figma 设计稿。",
   "type": "module",
@@ -20,10 +20,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kitan/dsh-figma.git"
+    "url": "git+https://github.com/KitanWang/dsh-figma-plugin.git"
   },
   "files": [
     "lib",
+    "assets",
     "skills",
     "scripts",
     "cordis.patch.yml",
@@ -65,7 +66,13 @@
     "smoke": "node scripts/smoke.mjs && node scripts/routes-smoke.mjs"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-host-webserver": "^0.1.5-rc.2"
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-credentials": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-skill": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.2"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
@@ -91,5 +98,9 @@
     "@deepseek-ai/dsh-system-prompt": {
       "optional": true
     }
+  },
+  "homepage": "https://github.com/KitanWang/dsh-figma-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/KitanWang/dsh-figma-plugin/issues"
   }
 }
