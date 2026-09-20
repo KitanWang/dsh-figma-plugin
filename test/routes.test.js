@@ -41,12 +41,9 @@ function stubCredentials() {
 
 function config(overrides = {}) {
   return {
-    accessToken: '',
     apiBaseUrl: 'https://api.figma.com',
-    clientId: 'client-1',
-    clientSecret: 'secret-1',
-    clientIdRef: 'FIGMA_CLIENT_ID',
-    clientSecretRef: 'FIGMA_CLIENT_SECRET',
+    clientId: 'builtin-client',
+    clientSecret: 'builtin-secret',
     authorizationUrl: 'https://www.figma.com/oauth',
     tokenUrl: 'https://api.figma.com/v1/oauth/token',
     refreshUrl: 'https://api.figma.com/v1/oauth/refresh',
@@ -130,9 +127,11 @@ test('the status route reports the connection without leaking secrets', async ()
   const response = await request(handler, `${API_BASE}/status`);
   assert.equal(response.status, 200);
   assert.equal(response.json.connected, true);
-  assert.equal(response.json.mode, 'oauth');
+  assert.equal(response.json.available, true);
   assert.equal(response.text.includes('top-secret'), false);
-  assert.equal(response.text.includes('secret-1'), false);
+  assert.equal(response.text.includes('builtin-secret'), false);
+  // The payload is the whole browser contract: state only.
+  assert.deepEqual(Object.keys(response.json).sort(), ['available', 'connected', 'pending']);
 });
 
 test('the connect route reports the authorization URL when the origin matches', async () => {
@@ -163,24 +162,27 @@ test('a mutating route refuses a cross-origin request', async () => {
 test('a mutating route refuses a request with no Origin at all', async () => {
   const { connection } = makeConnection();
   const handler = createApiHandler(connection, { prefix: API_BASE });
-  const response = await request(handler, `${API_BASE}/disconnect`, { method: 'POST', body: {} });
+  const response = await request(handler, `${API_BASE}/cancel`, { method: 'POST', body: {} });
   assert.equal(response.status, 403);
 });
 
-test('the connect route accepts client credentials submitted from the panel', async () => {
-  const { connection, credentials } = makeConnection({ config: { clientId: '', clientSecret: '' } });
+test('the connect route ignores client credentials posted by a caller', async () => {
+  // There is no user-supplied client credential any more, so a body must not be
+  // able to substitute one.
+  const { connection } = makeConnection({ config: { clientId: '', clientSecret: '' } });
   const handler = createApiHandler(connection, { prefix: API_BASE });
   const response = await request(handler, `${API_BASE}/connect`, {
     method: 'POST',
-    body: { clientId: 'panel-id', clientSecret: 'panel-secret' },
+    body: { clientId: 'attacker-id', clientSecret: 'attacker-secret' },
     headers: { origin },
   });
-  assert.equal(response.status, 200);
-  assert.equal(credentials.refs.get('FIGMA_CLIENT_SECRET'), 'panel-secret');
-  assert.match(response.json.authorizationUrl, /client_id=panel-id/);
+  // With no built-in client there is nothing to sign in with, and the posted
+  // values must not fill the gap.
+  assert.equal(response.status, 400);
+  assert.match(response.json.error, /carries no Figma OAuth client/);
 });
 
-test('the disconnect route clears the stored grant', async () => {
+test('the disconnect route no longer exists', async () => {
   const { connection, credentials } = makeConnection();
   await credentials.modifyRecord('figma/oauth', async () => ({
     kind: 'grant',
@@ -188,9 +190,19 @@ test('the disconnect route clears the stored grant', async () => {
   }));
   const handler = createApiHandler(connection, { prefix: API_BASE });
   const response = await request(handler, `${API_BASE}/disconnect`, { method: 'POST', body: {}, headers: { origin } });
+  assert.equal(response.status, 404);
+  // And the grant is untouched.
+  assert.equal((await connection.status({})).connected, true);
+});
+
+test('the cancel route reports whether an attempt was stopped', async () => {
+  const { connection } = makeConnection();
+  const handler = createApiHandler(connection, { prefix: API_BASE });
+  await request(handler, `${API_BASE}/connect`, { method: 'POST', body: {}, headers: { origin } });
+  const response = await request(handler, `${API_BASE}/cancel`, { method: 'POST', body: {}, headers: { origin } });
   assert.equal(response.status, 200);
-  assert.equal(response.json.ok, true);
-  assert.equal((await connection.status({})).connected, false);
+  assert.equal(response.json.cancelled, true);
+  assert.equal((await connection.status({})).pending.status, 'cancelled');
 });
 
 test('an unknown API route is a 404 rather than a guess', async () => {

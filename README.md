@@ -8,8 +8,8 @@ auto-layout, sizing, paints and typography, the design tokens the nodes are
 bound to, and a rendered screenshot it can actually look at — then write UI
 code that matches. Plus four bundled skills that carry the workflow.
 
-Connect a Figma account by signing in through the browser — **no token to copy
-and paste** — or keep using a personal access token for headless and CI use.
+Connect a Figma account with one button — **no token to create, copy, or
+paste** — and the agent can read the design.
 
 This is the DSH counterpart to the Figma plugin in Codex. See
 [How this compares](#how-this-compares-to-the-codex-figma-plugin) for what is
@@ -25,58 +25,43 @@ Then restart `dsh web` (a newly added bundle is composed at boot).
 
 ## Connect Figma
 
-Open **Settings → Figma** (the sidebar foot also carries a Figma status button
-that opens the same panel). The panel reports the connection state, the
-authorized account, and the token's expiry, and offers Connect / Re-authorize /
-Disconnect.
+Open **Settings → Figma** and press **Connect Figma**. Your browser opens
+Figma's own sign-in and consent page; approve it and the page flips to
+*Connected*, showing which Figma account you are using.
 
-Figma requires each integration to bring **its own OAuth app**: the token
-endpoint authenticates with the client's secret, and a secret cannot be shipped
-inside a plugin. Creating one is a one-time, two-minute step:
+That is the whole flow. The plugin carries its own Figma OAuth application, so
+you never register one, and nothing about credentials is ever shown in the
+browser.
 
-1. Open <https://www.figma.com/developers/apps> and **Create a new app**.
-   Associate it with any team or organization; leaving it **private** is fine —
-   private apps need no Figma review.
-2. On its **OAuth credentials** page, add the redirect URL the panel shows you.
-   It looks like `http://127.0.0.1:3080/figma/oauth/callback` and must match
-   exactly, including the port.
-3. On the **OAuth scopes** page select the read scopes the panel lists (file
-   content, comments, dev resources, variables, library content). Add
-   `file_comments:write` if you want `figma_post_comment`.
-4. Paste the app's **Client ID** and **Client Secret** into the panel and press
-   **Save and connect**. Your browser opens Figma's consent screen, and the panel
-   flips to *Connected* when you approve.
+Already connected and want a different account? Press **Reconnect** — it starts
+a fresh sign-in and replaces the stored grant.
 
-The Client ID is stored in the harness settings document; the Client Secret goes
-to the credential store (`$DSH_HOME/.credentials.yaml`), never to settings and
-never back to the browser. The granted access/refresh token is stored as a
-credential *record*, and the access token is refreshed automatically before it
-expires.
-
-Ask the agent instead if you prefer:
+You can also ask the agent:
 
 > Connect to Figma.
 
 The agent calls `figma_login`, which returns the authorization URL for you to
 open. The agent never asks you to paste a token into chat.
 
-### Personal access tokens
+### How the connection is stored
 
-A PAT still works and is the right choice for headless runs, CI, and scripts —
-it has no browser step. Any one of these is used when no OAuth grant is stored:
+The granted access and refresh tokens are stored as one credential *record*
+(`figma/oauth`) in the harness credential store
+(`$DSH_HOME/.credentials.yaml`), and the access token is refreshed
+automatically before it expires. The browser only ever learns whether the
+connection is live and which account it belongs to — never a token, an expiry,
+or any part of the OAuth client.
 
-1. `accessToken` on the plugin's config
-2. The harness credential store, under `FIGMA_ACCESS_TOKEN` or `FIGMA_TOKEN`
-3. The process environment, under `FIGMA_ACCESS_TOKEN` or `FIGMA_TOKEN`
+**No personal access token path.** A PAT would mean asking you to create a
+token in Figma's settings and paste it in, which is exactly the friction this
+plugin exists to remove. If you need token-based authentication for CI, use a
+separate integration.
+
 
 ```sh
 export FIGMA_ACCESS_TOKEN=figd_xxx
 dsh web
 ```
-
-Create one at **Figma → Settings → Security → Personal access tokens**
-(<https://www.figma.com/developers/api#access-tokens>). Unlike an OAuth grant, a
-PAT cannot refresh itself and expires according to Figma's policy.
 
 To set config explicitly, target the row by id in the profile's
 `cordis.patch.yml` (`~/.dsh/profiles/web/cordis.patch.yml`):
@@ -84,8 +69,8 @@ To set config explicitly, target the row by id in the profile's
 ```yaml
 - id: figma
   config:
-    accessToken: !!js process.env.FIGMA_ACCESS_TOKEN
     outputDir: .figma
+    callbackPort: 3080
 ```
 
 ## Tools
@@ -101,8 +86,8 @@ To set config explicitly, target the row by id in the profile's
 | `figma_get_dev_resources` | Dev resources (linked docs, tickets, code) attached to nodes. |
 | `figma_get_comments` | Comment threads with their node anchors. |
 | `figma_post_comment` | Post a comment anchored to a node or canvas position. Writes to Figma — confirm first. |
-| `figma_whoami` | Verify the current credential and report the authenticated account. |
-| `figma_login` | Report the connection, or start OAuth sign-in and return the URL for the human to open. |
+| `figma_whoami` | Verify the connection and report the authenticated account. |
+| `figma_login` | Report the connection, or start sign-in and return the URL for the human to open. |
 
 Every tool accepts either a full Figma URL (`url`) or a bare file key
 (`fileKey`); node ids may be written `1-2` (URL form) or `1:2` (API form).
@@ -134,8 +119,6 @@ All keys are optional.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `accessToken` | `''` | Explicit personal access token. When empty, the credential store and environment are consulted. |
-| `authMode` | `token` | `token` sends `X-Figma-Token`; `oauth` sends `Authorization: Bearer`. An OAuth grant always sends a bearer token regardless of this key. |
 | `apiBaseUrl` | `https://api.figma.com` | Override for a proxy. |
 | `requestTimeoutMs` | `30000` | Per-request timeout. |
 | `maxRetries` | `2` | Retries for 429/5xx, honouring `Retry-After`. |
@@ -143,16 +126,13 @@ All keys are optional.
 | `maxNodes` | `400` | Default node budget for a design-context projection. |
 | `maxDepth` | `8` | Default depth budget. |
 | `skills` | `true` | Register the bundled skills. |
-| `clientId` | `''` | OAuth app Client ID. Usually written by the connection panel, not here. |
-| `clientSecret` | `''` | OAuth app Client Secret. Prefer `clientSecretRef`; the panel stores the secret in the credential store. |
-| `clientIdRef` | `FIGMA_CLIENT_ID` | Credential reference consulted for the Client ID when `clientId` is empty. |
-| `clientSecretRef` | `FIGMA_CLIENT_SECRET` | Credential reference consulted for the Client Secret when `clientSecret` is empty. |
 | `scopes` | see below | Space-separated OAuth scopes requested at authorization. |
-| `callbackPort` | `0` | Port advertised in the redirect URL. `0` follows the live GUI port, which is the correct default. |
+| `callbackPort` | `0` | Port advertised in the redirect URL. `0` follows the live GUI port. |
 | `redirectUri` | `''` | Absolute redirect URI override; must match the Figma app exactly. Only loopback URLs are accepted. |
 | `callbackPath` | `/figma/oauth/callback` | Callback path appended to the redirect URI. |
-| `connectionRoutes` | `true` | Serve the OAuth callback and connection panel. Off means tools-only, with no HTTP surface. |
+| `connectionRoutes` | `true` | Serve the OAuth callback and connection page. Off means tools-only, with no HTTP surface. |
 | `authorizationUrl` / `tokenUrl` / `refreshUrl` | Figma's endpoints | Overridable for a proxy, a test, or Figma for Government. |
+| `clientId` / `clientSecret` | shipped values | The plugin's own OAuth app. Only a fork or a deployment that wants a different app sets these; they are never read from or written by the browser. |
 | `tools` | all on | Per-tool switches: `whoami`, `file`, `designContext`, `screenshot`, `variables`, `styles`, `components`, `devResources`, `comments`, `postComment`, `login`. |
 
 The default scopes are `current_user:read`, `file_content:read`,
@@ -160,12 +140,32 @@ The default scopes are `current_user:read`, `file_content:read`,
 `file_dev_resources:read`, `file_variables:read`, `library_content:read`, and
 `library_assets:read`.
 
-### Headless and tools-only deployments
+### The plugin's OAuth app
+
+Figma's token endpoint authenticates the client with HTTP Basic
+(`client_id:client_secret`) and supports no secret-less public-client mode, so a
+plugin that must not ask the user for credentials has to ship one client of its
+own. It lives in one place — [`lib/oauth-app.js`](lib/oauth-app.js) — and a fork
+or deployment can override it with config or with `FIGMA_CLIENT_ID` /
+`FIGMA_CLIENT_SECRET`.
+
+Because Figma matches redirect URLs exactly, the app must list every redirect a
+deployment can use. The default GUI port is 3080:
+
+```
+http://127.0.0.1:3080/figma/oauth/callback
+http://localhost:3080/figma/oauth/callback
+```
+
+If the GUI runs on another port, register that port on the app or pin
+`callbackPort`.
+
+### Tools-only deployments
 
 A deployment with no web server (or `connectionRoutes: false`) registers the
-tools but no HTTP route, so `figma_login` reports the connection and tells the
-human to configure a PAT. Credentials resolve per call, so a token rotated
-outside the process reaches the next tool call with no restart.
+tools but no HTTP route. `figma_login` then reports that sign-in is unavailable,
+and the tools explain that Figma is not connected. There is no token fallback:
+this plugin authenticates only through its own OAuth grant.
 
 ## Security notes
 
@@ -174,15 +174,19 @@ outside the process reaches the next tool call with no restart.
   cross-site navigation, which that fence rejects. `state` is therefore the
   authentication — 32 random bytes generated in-process, compared in constant
   time, and required to match a pending attempt.
-- Every state-changing panel route is same-origin POST only. A request with no
-  `Origin` is refused rather than trusted.
-- The browser never receives the access token, the refresh token, or the Client
-  Secret. The status payload carries presence and expiry only, and is asserted
-  against secret leakage in the test suite.
+- Every state-changing route is same-origin POST only. A request with no
+  `Origin` is refused rather than trusted, and a posted body cannot substitute
+  client credentials.
+- The browser never receives the access token, the refresh token, or any part of
+  the OAuth client. The status payload is exactly `connected`, `available`, and
+  the pending attempt's state — asserted against leakage in the test suite.
 - The redirect URI must be a loopback http(s) URL, so a one-time code cannot be
   sent to a host this process does not own.
 - Figma expires authorization codes after 30 seconds, so the exchange happens
   inside the callback request itself, before anything else is awaited.
+- The shipped client secret is readable by anyone who installs the package.
+  That is inherent to Figma requiring a secret; the app therefore requests only
+  the scopes it needs, and a deployment can rotate it by setting its own values.
 
 ## How this compares to the Codex Figma plugin
 
@@ -200,25 +204,27 @@ no running Figma desktop:
 
 | | Codex + Figma plugin | dsh-figma |
 | --- | --- | --- |
-| Design reads | Figma MCP server (OAuth) | Figma REST API (OAuth, PAT fallback) |
+| Design reads | Figma MCP server (OAuth) | Figma REST API (OAuth) |
 | Sign-in | browser authorization, hosted by Figma | browser authorization, hosted by Figma |
-| OAuth client | Figma's own, shipped in the connector | each user registers one (Figma requires the secret at exchange) |
+| OAuth client | Figma's own, shipped in the connector | the plugin's own, shipped in `lib/oauth-app.js` |
 | Credential storage | connector-managed | harness credential store (`records`), auto-refreshed |
+| Credentials the user handles | none | none |
 | Requires Figma desktop running | No (hosted MCP) | No |
 | Skills | 7 bundled, Figma-authored | 4 bundled, written for these tools |
 | Design tokens | via MCP `get_variable_defs` | `figma_get_variables` (modes + alias resolution + CSS/JSON export) |
 | Code Connect | MCP + Figma CLI | skill guides template generation; publish with the Figma CLI |
 | Write back to canvas | Yes (MCP + Plugin API) | **No** — see below |
-| Setup | install plugin, authorize Figma | install plugin, register one OAuth app, click **Save and connect** |
+| Setup | install plugin, authorize Figma | install plugin, click **Connect Figma** |
 
-### Why you register your own OAuth app
+### Why the plugin ships its own OAuth app
 
 Figma's token endpoint authenticates the client with HTTP Basic
-(`client_id:client_secret`); PKCE is supported but does not replace the secret.
-A shipped secret would be readable by everyone who installs the plugin, so each
-user registers their own app once. Figma also restricts hosted-MCP dynamic
-client registration to clients in its MCP Catalog, so a third-party plugin
-cannot mint a shared client.
+(`client_id:client_secret`) and supports no secret-less public-client mode, so
+there is no way to sign a user in without some client secret. Shipping one in
+the package keeps the user's side to a single button; the tradeoff is that the
+secret is readable by anyone who installs the plugin. Figma also restricts
+hosted-MCP dynamic client registration to clients in its MCP Catalog, so a
+third-party plugin cannot mint a shared client either.
 
 ### Want Figma's own MCP tools too?
 
@@ -262,13 +268,20 @@ of your own.
   is also attached inline whenever the current model accepts image input.
 - **Rate limits are Figma's.** The client retries 429/5xx with backoff, but a
   large file walked node by node can still hit the limit.
-- **OAuth needs a credential store and a web server.** Both are in the default
-  web profile. A tools-only composition without them still works with a PAT.
+- **Sign-in needs a credential store and a web server.** Both are in the default
+  web profile. A tools-only composition registers the tools but cannot sign in,
+  and says so.
+- **The shipped OAuth secret is public.** Anyone who installs the package can
+  read it. It grants only the scopes listed above, and a deployment can rotate
+  it by supplying its own client in config or the environment.
+- **The redirect port must be registered.** Figma matches redirect URLs exactly,
+  so a GUI on an unregistered port cannot complete sign-in until that port is
+  added to the app or pinned with `callbackPort`.
 
 ## Development
 
 ```sh
-npm test                        # 113 unit + integration tests, no network
+npm test                        # 116 unit + integration tests, no network
 node scripts/smoke.mjs          # mount in a real Cordis context; assert registration
 node scripts/routes-smoke.mjs   # drive the OAuth routes against a real WebServer
 ```

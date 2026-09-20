@@ -11,27 +11,34 @@
 #
 #   - id: figma
 #     config:
-#       accessToken: !!js process.env.FIGMA_ACCESS_TOKEN
 #       outputDir: .figma
+#       callbackPort: 3080
 #
-# Every config key is optional: with no config at all the plugin offers OAuth
-# sign-in from Settings → Figma, falls back to `FIGMA_ACCESS_TOKEN` /
-# `FIGMA_TOKEN` (environment or the harness credential store) for headless use,
-# and writes rendered exports to `<cwd>/.dsh-figma`.
+# Every config key is optional, and none is needed for sign-in to work: the
+# plugin carries its own Figma OAuth app and writes rendered exports to
+# `<cwd>/.dsh-figma`. A user connects from Settings → Figma by pressing one
+# button; nothing has to be configured here.
 #
-# The OAuth client is configured per user at runtime by the connection panel,
-# so nothing has to be set here for the browser sign-in to work. To pre-seed it
-# instead — useful for a shared deployment — give the row a client id and let
-# the secret live in the credential store:
+# Keys worth setting in a deployment:
+#
+#   callbackPort: 3080        # 0 (default) follows the live GUI port. Figma
+#                             # matches redirect URLs exactly, so a GUI on a
+#                             # port the OAuth app has not registered must pin
+#                             # this instead.
+#   connectionRoutes: true    # false = tools only, no HTTP surface, no sign-in
+#   outputDir: .figma         # where screenshots and exports land
+#
+# To use a different OAuth app than the one shipped in lib/oauth-app.js —
+# typically to rotate the secret — set clientId here and the secret through the
+# environment, so no secret enters the composition file:
 #
 #   - id: figma
 #     config:
 #       clientId: !!js process.env.FIGMA_CLIENT_ID
-#       clientSecretRef: FIGMA_CLIENT_SECRET
-#       callbackPort: 3080          # 0 (default) follows the live GUI port
-#       connectionRoutes: true      # false = tools only, no HTTP surface
+#       clientSecret: !!js process.env.FIGMA_CLIENT_SECRET
 #
-# A deployment with no web server simply registers the tools and no routes.
+# A deployment with no web server simply registers the tools and no routes;
+# `figma_login` then reports that sign-in is unavailable.
 - insert:
     - id: figma
       name: 'dsh-figma'

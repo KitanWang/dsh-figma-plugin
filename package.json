@@ -1,7 +1,7 @@
 {
   "name": "dsh-figma",
-  "version": "0.2.0",
-  "description": "Figma design context for DeepSeek Harness: read frames, components, variables and screenshots straight from the Figma REST API, plus bundled design-to-code skills. · 让 DSH 直接读懂 Figma 设计稿。",
+  "version": "0.3.0",
+  "description": "Figma design context for DeepSeek Harness: read frames, components, variables and screenshots straight from the Figma REST API, plus bundled design-to-code skills. \u00b7 \u8ba9 DSH \u76f4\u63a5\u8bfb\u61c2 Figma \u8bbe\u8ba1\u7a3f\u3002",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -45,7 +45,8 @@
     "./simplify": "./lib/simplify.js",
     "./tokens": "./lib/tokens.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./oauth-app": "./lib/oauth-app.js"
   },
   "dsh": {
     "bundle": {

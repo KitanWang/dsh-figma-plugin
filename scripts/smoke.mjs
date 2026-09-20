@@ -22,7 +22,7 @@ const ctx = new Context();
 ctx.plugin(systemPromptService.default);
 ctx.plugin(toolsService.default);
 ctx.plugin(skillService.default);
-ctx.plugin(figma, { accessToken: 'smoke-token' });
+ctx.plugin(figma, { clientId: 'smoke-client', clientSecret: 'smoke-secret' });
 
 await new Promise((resolve) => setTimeout(resolve, 500));
 

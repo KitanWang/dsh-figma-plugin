@@ -54,6 +54,8 @@ function startStub() {
         method: request.method,
         path: url.pathname,
         query: Object.fromEntries(url.searchParams),
+        authorization: request.headers.authorization,
+        // Kept so a test can assert the legacy header is never sent.
         token: request.headers['x-figma-token'],
         body: chunks.length === 0 ? undefined : JSON.parse(Buffer.concat(chunks).toString('utf8')),
       });
@@ -63,11 +65,13 @@ function startStub() {
         response.end(JSON.stringify(payload));
       };
       const path = url.pathname;
+      // The plugin only ever authenticates as a bearer client now.
+      const bearer = /^Bearer (.+)$/.exec(request.headers.authorization ?? '')?.[1];
 
       if (path === '/v1/me') {
         // Two special tokens model the real scope failures: a valid token that
         // lacks current_user:read, and a revoked one.
-        const token = request.headers['x-figma-token'];
+        const token = bearer;
         if (token === 'scoped-token') {
           response.writeHead(403, { 'content-type': 'application/json' });
           response.end(
@@ -208,12 +212,38 @@ function startStub() {
   return server;
 }
 
-/** A minimal stand-in for the cordis plugin context. */
+/**
+ * A minimal stand-in for the cordis plugin context.
+ *
+ * The credential service is the in-memory half of the real seam: the plugin
+ * stores its OAuth grant there, so a tool test seeds a grant instead of a
+ * personal access token.
+ */
 function createStubContext() {
   const registered = new Map();
   const sections = [];
   const skills = [];
   const warnings = [];
+  const records = new Map();
+  const credentials = {
+    async readRecord(key) {
+      return records.get(String(key));
+    },
+    async describeRecord(key) {
+      return { configured: records.has(String(key)), writable: true };
+    },
+    async listRecords() {
+      return [...records.keys()].map((key) => ({ key, kind: 'grant' }));
+    },
+    async modifyRecord(key, mutate) {
+      const next = await mutate(records.get(String(key)));
+      if (next !== undefined) records.set(String(key), next);
+      return records.get(String(key));
+    },
+    async deleteRecord(key) {
+      records.delete(String(key));
+    },
+  };
   const ctx = {
     tools: {
       register(definition) {
@@ -227,11 +257,20 @@ function createStubContext() {
     get(name) {
       if (name === 'skills') return { register: (skill) => (skills.push(skill), () => {}) };
       if (name === 'systemPrompt') return { section: (section) => (sections.push(section), () => {}) };
+      if (name === 'credentials') return credentials;
       return undefined;
     },
     logger: { warn: (message) => warnings.push(message) },
   };
-  return { ctx, registered, sections, skills, warnings };
+  return { ctx, registered, sections, skills, warnings, credentials, records };
+}
+
+/** Seed a usable OAuth grant, the only way this plugin authenticates. */
+async function seedGrant(target, accessToken) {
+  await target.credentials.modifyRecord('figma/oauth', async () => ({
+    kind: 'grant',
+    payload: { accessToken, refreshToken: 'refresh-token', expiresAt: Date.now() + 3_600_000 },
+  }));
 }
 
 let server;
@@ -245,7 +284,8 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}`;
   workspace = await mkdtemp(join(tmpdir(), 'dsh-figma-test-'));
   stub = createStubContext();
-  apply(stub.ctx, Config({ accessToken: 'test-token', apiBaseUrl: baseUrl, outputDir: 'exports' }));
+  await seedGrant(stub, 'test-token');
+  apply(stub.ctx, Config({ apiBaseUrl: baseUrl, outputDir: 'exports', clientId: 'test-client', clientSecret: 'test-secret' }));
 });
 
 after(async () => {
@@ -283,29 +323,40 @@ test('registers every tool and the bundled skills', () => {
 
 test('honours per-tool registration switches', () => {
   const limited = createStubContext();
-  apply(limited.ctx, Config({ accessToken: 't', apiBaseUrl: baseUrl, skills: false, tools: { postComment: false, comments: false } }));
+  apply(limited.ctx, Config({ apiBaseUrl: baseUrl, skills: false, tools: { postComment: false, comments: false } }));
   assert.equal(limited.registered.has('figma_post_comment'), false);
   assert.equal(limited.registered.has('figma_get_comments'), false);
   assert.equal(limited.registered.has('figma_get_design_context'), true);
   assert.equal(limited.skills.length, 0);
 });
 
-test('figma_whoami authenticates with the personal access token header', async () => {
+test('figma_whoami authenticates with a bearer token from the stored grant', async () => {
   const result = await stub.registered.get('figma_whoami').execute({}, exec());
   assert.equal(result.handle, 'kitan');
   assert.equal(result.email, 'kitan@example.com');
-  assert.equal(result.tokenSource, 'plugin config');
   const request = seen.find((entry) => entry.path === '/v1/me');
-  assert.equal(request.token, 'test-token');
+  // An OAuth grant is always a bearer credential; the legacy PAT header is gone.
+  assert.equal(request.authorization, 'Bearer test-token');
+  assert.equal(request.token, undefined);
+  assert.equal('tokenSource' in result, false, 'no credential provenance is reported');
 });
 
-test('figma_whoami reports a valid token that lacks current_user:read', async () => {
+test('every request authenticates as a bearer client, never with the legacy PAT header', async () => {
+  await stub.registered.get('figma_get_file').execute({ fileKey: FILE_KEY }, exec());
+  const recent = seen.slice(-4);
+  for (const entry of recent) {
+    assert.match(entry.authorization ?? '', /^Bearer /, `${entry.path} must carry a bearer token`);
+    assert.equal(entry.token, undefined, `${entry.path} must not send the legacy PAT header`);
+  }
+});
+
+test('figma_whoami reports a grant that lacks current_user:read', async () => {
   const scoped = createStubContext();
-  apply(scoped.ctx, Config({ accessToken: 'scoped-token', apiBaseUrl: baseUrl }));
+  await seedGrant(scoped, 'scoped-token');
+  apply(scoped.ctx, Config({ apiBaseUrl: baseUrl }));
   const result = await scoped.registered.get('figma_whoami').execute({}, exec());
   assert.equal(result.verified, true);
   assert.equal(result.handle, undefined);
-  assert.equal(result.tokenSource, 'plugin config');
   assert.match(result.note, /current_user:read/);
 
   // The rendered text must not claim an identity it could not read.
@@ -314,9 +365,10 @@ test('figma_whoami reports a valid token that lacks current_user:read', async ()
   assert.doesNotMatch(blocks[0].text, /undefined/);
 });
 
-test('figma_whoami rejects a revoked token', async () => {
+test('figma_whoami rejects a revoked grant', async () => {
   const bad = createStubContext();
-  apply(bad.ctx, Config({ accessToken: 'bad-token', apiBaseUrl: baseUrl }));
+  await seedGrant(bad, 'bad-token');
+  apply(bad.ctx, Config({ apiBaseUrl: baseUrl }));
   await assert.rejects(
     () => bad.registered.get('figma_whoami').execute({}, exec()),
     /invalid or has been revoked/,
@@ -463,26 +515,48 @@ test('a Figma API error surfaces the status and message', async () => {
   );
 });
 
-test('the missing-token message names every way to configure one', async () => {
+test('an unconnected plugin tells the model to use the connection page', async () => {
   const bare = createStubContext();
   apply(bare.ctx, Config({ apiBaseUrl: baseUrl }));
+  // A stray environment token must not quietly authenticate the plugin.
   const previous = { a: process.env.FIGMA_ACCESS_TOKEN, b: process.env.FIGMA_TOKEN };
-  delete process.env.FIGMA_ACCESS_TOKEN;
-  delete process.env.FIGMA_TOKEN;
+  process.env.FIGMA_ACCESS_TOKEN = 'legacy-pat';
+  process.env.FIGMA_TOKEN = 'legacy-pat-2';
   try {
     await assert.rejects(
       () => bare.registered.get('figma_whoami').execute({}, exec()),
-      /FIGMA_ACCESS_TOKEN/,
+      (error) => {
+        assert.match(error.message, /Settings → Figma/);
+        assert.doesNotMatch(error.message, /FIGMA_ACCESS_TOKEN/);
+        return true;
+      },
     );
   } finally {
-    if (previous.a !== undefined) process.env.FIGMA_ACCESS_TOKEN = previous.a;
-    if (previous.b !== undefined) process.env.FIGMA_TOKEN = previous.b;
+    if (previous.a === undefined) delete process.env.FIGMA_ACCESS_TOKEN;
+    else process.env.FIGMA_ACCESS_TOKEN = previous.a;
+    if (previous.b === undefined) delete process.env.FIGMA_TOKEN;
+    else process.env.FIGMA_TOKEN = previous.b;
   }
+});
+
+test('figma_login reports the connection and never asks for a pasted token', async () => {
+  const bare = createStubContext();
+  apply(bare.ctx, Config({ apiBaseUrl: baseUrl, clientId: 'c', clientSecret: 's' }));
+  const status = await bare.registered.get('figma_login').execute({ action: 'status' }, exec());
+  assert.equal(status.connected, false);
+  const rendered = bare.registered.get('figma_login').output.render({}, status)[0].text;
+  assert.doesNotMatch(rendered, /paste|token/i);
+
+  const started = await bare.registered.get('figma_login').execute({ action: 'start' }, exec());
+  assert.match(started.authorizationUrl, /figma\.com\/oauth/);
+  // The URL is for opening in a browser, not for the model to fetch.
+  assert.match(started.nextStep, /open this URL in a browser/);
 });
 
 test('exports land in the session workspace by default', async () => {
   const other = createStubContext();
-  apply(other.ctx, Config({ accessToken: 't', apiBaseUrl: baseUrl }));
+  await seedGrant(other, 't');
+  apply(other.ctx, Config({ apiBaseUrl: baseUrl }));
   const result = await other.registered.get('figma_get_screenshot').execute({ url: DESIGN_URL }, exec());
   assert.equal(result.images[0].filePath, join(workspace, '.dsh-figma', '1-2.png'));
   await stat(result.images[0].filePath);

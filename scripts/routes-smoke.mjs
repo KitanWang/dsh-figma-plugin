@@ -29,25 +29,6 @@ const check = (condition, message) => {
 class MemoryCredentials extends credentialsService.CredentialProvider {
   records = new Map();
 
-  refs = new Map([['FIGMA_CLIENT_SECRET', 'stored-secret']]);
-
-  async resolve(ref) {
-    const value = this.refs.get(String(ref));
-    return value === undefined ? undefined : { value, source: 'file' };
-  }
-
-  async describe(ref) {
-    return { configured: this.refs.has(String(ref)), writable: true };
-  }
-
-  async set(ref, value) {
-    this.refs.set(String(ref), value);
-  }
-
-  async unset(ref) {
-    this.refs.delete(String(ref));
-  }
-
   async readRecord(key) {
     return this.records.get(String(key));
   }
@@ -77,7 +58,7 @@ ctx.plugin(toolsService.default);
 ctx.plugin(skillService.default);
 ctx.plugin(webServerService.default, { host: '127.0.0.1', port: 0 });
 ctx.plugin(MemoryCredentials);
-ctx.plugin(figma, { clientId: 'smoke-client' });
+ctx.plugin(figma, { clientId: 'smoke-client', clientSecret: 'smoke-client-secret' });
 
 await new Promise((resolve) => setTimeout(resolve, 1200));
 
@@ -89,14 +70,16 @@ const status = await fetch(`${origin}/figma/api/v1/status`);
 const statusBody = await status.json();
 check(status.status === 200, `GET /figma/api/v1/status returned ${status.status}`);
 check(statusBody.connected === false, 'a fresh connection should report not-connected');
-check(statusBody.clientConfigured === true, 'the configured client id should be reported as usable');
+check(statusBody.available === true, 'a build with an OAuth client should report sign-in as available');
+// The browser contract is state only: no credential may ride along.
 check(
-  statusBody.redirectUri === `${origin}/figma/oauth/callback`,
-  `the redirect URI must use the live port, got ${statusBody.redirectUri}`,
+  Object.keys(statusBody).sort().join(',') === 'available,connected,pending',
+  `the status payload must expose state only, got ${Object.keys(statusBody).join(',')}`,
 );
 const statusText = JSON.stringify(statusBody);
-check(!statusText.includes('stored-secret'), 'the client secret must never reach the browser');
-check(!statusText.includes('smoke-client-secret'), 'no secret material may appear in the status payload');
+for (const forbidden of ['stored-secret', 'smoke-client-secret']) {
+  check(!statusText.includes(forbidden), `${forbidden} must never reach the browser`);
+}
 
 const connect = await fetch(`${origin}/figma/api/v1/connect`, {
   method: 'POST',
@@ -110,10 +93,15 @@ check(
   'connect must return a Figma authorization URL',
 );
 check(
-  typeof connectBody.authorizationUrl === 'string' && connectBody.authorizationUrl.includes(encodeURIComponent(`${origin}/figma/oauth/callback`)),
-  'the authorization URL must carry the redirect URI Figma will match',
+  typeof connectBody.authorizationUrl === 'string' &&
+    connectBody.authorizationUrl.includes(encodeURIComponent(`http://127.0.0.1:${webServer.port}/figma/oauth/callback`)),
+  'the authorization URL must carry the redirect URI Figma will match, on the live port',
 );
 check(typeof connectBody.state === 'string' && connectBody.state.length >= 32, 'connect must return a high-entropy state');
+check(
+  typeof connectBody.authorizationUrl === 'string' && connectBody.authorizationUrl.includes('code_challenge_method=S256'),
+  'the authorization URL must carry a PKCE challenge',
+);
 
 const crossOrigin = await fetch(`${origin}/figma/api/v1/connect`, {
   method: 'POST',
@@ -137,7 +125,7 @@ if (failures.length > 0) {
 }
 
 console.log(`route smoke passed: web server on ${origin}`);
-console.log(`  GET  /figma/api/v1/status        → connected=${statusBody.connected}, redirectUri uses the live port`);
+console.log(`  GET  /figma/api/v1/status        → connected=${statusBody.connected}, available=${statusBody.available}, state-only payload`);
 console.log(`  POST /figma/api/v1/connect       → Figma authorization URL with state + PKCE`);
 console.log(`  POST /figma/api/v1/connect (evil) → 403`);
 console.log(`  GET  /figma/oauth/callback (forged state) → 400 with a rendered page`);

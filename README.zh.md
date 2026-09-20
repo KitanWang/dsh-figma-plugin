@@ -7,6 +7,8 @@
 节点绑定的设计变量（Design Token），以及一张它真的能看的渲染截图 —— 然后写出与设计一致的 UI 代码。
 另外还附带四个把整套工作流固化下来的技能（Skill）。
 
+连接 Figma 只要按一个按钮 —— **不需要申请、复制或粘贴任何 Token**。
+
 这是 Codex 里那个 Figma 插件的 DSH 对应物。相同点与不同点见
 [与 Codex Figma 插件的对比](#与-codex-figma-插件的对比)。
 
@@ -20,24 +22,13 @@ dsh plugin --profile web add dsh-figma
 
 ## 连接 Figma
 
-打开 **设置 → Figma**（左侧栏底部「设置」按钮旁边也有一个 Figma 状态按钮，点开是同一个面板）。
-面板会显示连接状态、已授权账号、令牌有效期，并提供「连接 / 重新授权 / 断开连接」。
+打开 **设置 → Figma**，点击「连接 Figma」。浏览器会打开 Figma 官方的登录与授权页面，
+你同意后页面就会变成「已连接」，并显示当前使用的是哪个 Figma 账号。
 
-Figma 要求每个集成自带 **自己的 OAuth 应用**：换取令牌时必须用 Client Secret 做认证，
-而 Secret 无法随插件分发。创建一次即可长期使用，大约两分钟：
+整个流程就这些。插件内置了自己的 Figma OAuth 应用，你不需要注册任何应用，
+浏览器里也永远不会出现任何凭据。
 
-1. 打开 <https://www.figma.com/developers/apps>，**Create a new app**。归属哪个团队/组织都可以；
-   保持 **private（私有）** 即可，私有应用不需要 Figma 审核。
-2. 在该应用的 **OAuth credentials** 页面添加面板中显示的重定向地址。它形如
-   `http://127.0.0.1:3080/figma/oauth/callback`，**必须完全一致，包括端口**。
-3. 在 **OAuth scopes** 页面勾选面板列出的读取权限（文件内容、评论、开发资源、变量、团队库内容）。
-   如需使用 `figma_post_comment`，再勾上 `file_comments:write`。
-4. 把应用的 **Client ID** 与 **Client Secret** 填进面板并点击「保存并连接」。浏览器会打开 Figma
-   授权页，你同意后，面板会变成「已连接」。
-
-Client ID 存入 Harness 设置文档；Client Secret 存入凭据库
-（`$DSH_HOME/.credentials.yaml`），**不会写入设置文件，也不会回传给浏览器**。
-授权得到的 access/refresh token 以凭据 *record* 形式保存，access token 到期前会自动续期。
+已经连接、想换个账号？点「重新连接」即可，它会重新发起一次登录并替换已存的授权。
 
 也可以直接让 Agent 代劳：
 
@@ -45,24 +36,15 @@ Client ID 存入 Harness 设置文档；Client Secret 存入凭据库
 
 Agent 会调用 `figma_login`，返回一个授权链接让你在浏览器打开。Agent 不会要求你在对话里粘贴 Token。
 
-### 个人访问令牌（PAT）
+### 连接是怎么保存的
 
-PAT 依然可用，而且是无头运行、CI 与脚本场景的正确选择 —— 它没有浏览器环节。
-已有可用的 PAT 时，OAuth 配置向导会显示为「可选升级」而不是必需步骤。
-没有 OAuth 授权记录时，按此顺序查找 PAT：
+授权得到的 access / refresh token 以一条凭据 *record*（`figma/oauth`）保存在
+Harness 凭据库（`$DSH_HOME/.credentials.yaml`）里，access token 到期前会自动续期。
+浏览器只知道「是否已连接」和「连的是哪个账号」—— 拿不到 token、有效期，
+也拿不到 OAuth 客户端的任何部分。
 
-1. 插件配置里的 `accessToken`
-2. Harness 凭据库中的 `FIGMA_ACCESS_TOKEN` 或 `FIGMA_TOKEN`
-3. 进程环境变量中的 `FIGMA_ACCESS_TOKEN` 或 `FIGMA_TOKEN`
-
-```sh
-export FIGMA_ACCESS_TOKEN=figd_xxx
-dsh web
-```
-
-在 **Figma → Settings → Security → Personal access tokens**
-（<https://www.figma.com/developers/api#access-tokens>）创建。与 OAuth 授权不同，
-PAT 无法自动续期，有效期按 Figma 的策略。
+**没有个人访问令牌（PAT）这条路。** PAT 意味着让你去 Figma 设置里生成令牌再粘贴进来，
+而这正是本插件想消除的麻烦。CI 场景若需要基于令牌的认证，请使用单独的集成。
 
 想显式写配置，就在 profile 的 `cordis.patch.yml`
 （`~/.dsh/profiles/web/cordis.patch.yml`）里按 id 覆盖那一行：
@@ -70,8 +52,8 @@ PAT 无法自动续期，有效期按 Figma 的策略。
 ```yaml
 - id: figma
   config:
-    accessToken: !!js process.env.FIGMA_ACCESS_TOKEN
     outputDir: .figma
+    callbackPort: 3080
 ```
 
 ## 工具一览
@@ -118,8 +100,6 @@ Agent 会调用 `figma_get_design_context`，读大纲和截图，先看仓库�
 
 | 配置 | 默认值 | 含义 |
 | --- | --- | --- |
-| `accessToken` | `''` | 显式个人访问令牌。为空时查凭据库与环境变量。 |
-| `authMode` | `token` | `token` 发 `X-Figma-Token`；`oauth` 发 `Authorization: Bearer`。OAuth 授权始终按 Bearer 发送，与该项无关。 |
 | `apiBaseUrl` | `https://api.figma.com` | 走代理时覆盖。 |
 | `requestTimeoutMs` | `30000` | 单次请求超时。 |
 | `maxRetries` | `2` | 429/5xx 重试次数，遵循 `Retry-After`。 |
@@ -127,36 +107,52 @@ Agent 会调用 `figma_get_design_context`，读大纲和截图，先看仓库�
 | `maxNodes` | `400` | 设计上下文投影的默认节点预算。 |
 | `maxDepth` | `8` | 默认深度预算。 |
 | `skills` | `true` | 是否注册内置技能。 |
-| `clientId` | `''` | OAuth 应用的 Client ID。通常由连接面板写入，不必手写。 |
-| `clientSecret` | `''` | OAuth 应用的 Client Secret。建议改用 `clientSecretRef`；面板会把 Secret 存进凭据库。 |
-| `clientIdRef` | `FIGMA_CLIENT_ID` | `clientId` 为空时，从这个凭据引用读取 Client ID。 |
-| `clientSecretRef` | `FIGMA_CLIENT_SECRET` | `clientSecret` 为空时，从这个凭据引用读取 Client Secret。 |
 | `scopes` | 见下 | 授权时申请的权限范围，空格分隔。 |
-| `callbackPort` | `0` | 重定向地址里声明的端口。`0` 表示跟随 GUI 实际端口，是正确默认值。 |
+| `callbackPort` | `0` | 重定向地址里声明的端口。`0` 表示跟随 GUI 实际端口。 |
 | `redirectUri` | `''` | 重定向地址覆盖值；必须与 Figma 应用配置完全一致。只接受回环地址。 |
 | `callbackPath` | `/figma/oauth/callback` | 追加到重定向地址后的回调路径。 |
-| `connectionRoutes` | `true` | 是否提供 OAuth 回调与连接面板。关闭后只注册工具，不暴露任何 HTTP 接口。 |
+| `connectionRoutes` | `true` | 是否提供 OAuth 回调与连接页。关闭后只注册工具，不暴露任何 HTTP 接口。 |
 | `authorizationUrl` / `tokenUrl` / `refreshUrl` | Figma 官方端点 | 走代理、跑测试或使用 Figma for Government 时可覆盖。 |
+| `clientId` / `clientSecret` | 内置值 | 插件自己的 OAuth 应用。只有 fork 或想换用别的应用的部署才需要设置；浏览器既不读取也不写入它们。 |
 | `tools` | 全开 | 单工具开关：`whoami`、`file`、`designContext`、`screenshot`、`variables`、`styles`、`components`、`devResources`、`comments`、`postComment`、`login`。 |
 
 默认权限范围为 `current_user:read`、`file_content:read`、`file_metadata:read`、
 `file_comments:read`、`file_comments:write`、`file_dev_resources:read`、
 `file_variables:read`、`library_content:read`、`library_assets:read`。
 
+### 插件自带的 OAuth 应用
+
+Figma 的令牌端点用 HTTP Basic（`client_id:client_secret`）认证客户端，且不支持
+无需密钥的公开客户端模式，所以「不让用户碰凭据」的插件必须自带一个客户端。
+它只放在一个地方 —— [`lib/oauth-app.js`](lib/oauth-app.js)；fork 或部署可以通过配置项
+或 `FIGMA_CLIENT_ID` / `FIGMA_CLIENT_SECRET` 覆盖它。
+
+由于 Figma 精确匹配重定向地址，应用必须登记部署可能用到的每一个地址。
+GUI 默认端口是 3080：
+
+```
+http://127.0.0.1:3080/figma/oauth/callback
+http://localhost:3080/figma/oauth/callback
+```
+
+如果 GUI 跑在别的端口，要么在该应用上登记那个端口，要么固定 `callbackPort`。
+
 ### 无头与纯工具部署
 
-没有 web server 的部署（或设置 `connectionRoutes: false`）只注册工具、不注册 HTTP 路由，
-此时 `figma_login` 会报告连接状态并提示配置 PAT。凭据是按调用解析的，
-因此在进程外轮换的 Token 无需重启就能在下次工具调用生效。
+没有 web server 的部署（或设置 `connectionRoutes: false`）只注册工具、不注册 HTTP 路由。
+此时 `figma_login` 会报告无法登录，工具也会说明 Figma 未连接。
+本插件没有令牌兜底：它只通过自己的 OAuth 授权认证。
 
 ## 安全说明
 
 - OAuth 回调是一条普通 HTTP 路由，**刻意不套用** Harness 的跨站 API 防护栅栏：
   Figma 是把浏览器以顶层跨站导航 302 回来的，那个栅栏会直接拒绝。因此这条路由的认证
   就是 `state` —— 进程内生成的 32 字节随机值，常量时间比较，且必须命中一个待处理的授权尝试。
-- 面板上所有会改状态的接口都限定同源 POST。缺少 `Origin` 头的请求一律拒绝，而不是放行。
-- 浏览器永远拿不到 access token、refresh token 或 Client Secret。状态接口只返回「是否已配置」
-  与有效期，测试套件里有针对凭据泄漏的断言。
+- 所有会改状态的接口都限定同源 POST。缺少 `Origin` 头的请求一律拒绝，而不是放行；
+  请求体也无法用来替换客户端凭据。
+- 浏览器永远拿不到 access token、refresh token 或 OAuth 客户端的任何部分。状态接口
+  只返回 `connected`、`available` 与待处理授权的状态 —— 测试里有针对泄漏的断言。
+  测试套件里有针对泄漏的断言。
 - 重定向地址必须是回环 http(s) 地址，一次性授权码不会发往本进程不拥有的主机。
 - Figma 的授权码 30 秒即过期，所以换取令牌发生在回调请求内部、且在 await 任何其他操作之前。
 
@@ -174,9 +170,10 @@ DSH 有同样的**原语** —— 技能注册表（`ctx.skills`）、工具注�
 
 | | Codex + Figma 插件 | dsh-figma |
 | --- | --- | --- |
-| 读设计 | Figma MCP Server（OAuth） | Figma REST API（OAuth，PAT 兜底） |
+| 读设计 | Figma MCP Server（OAuth） | Figma REST API（OAuth） |
 | 登录方式 | 浏览器授权，由 Figma 托管页面 | 浏览器授权，由 Figma 托管页面 |
-| OAuth 客户端 | Figma 自己的，随连接器分发 | 每个用户自己注册一个（Figma 要求换取令牌时提供 Secret） |
+| OAuth 客户端 | Figma 自己的，随连接器分发 | 插件自己的，内置在 `lib/oauth-app.js` |
+| 用户需要处理的凭据 | 无 | 无 |
 | 凭据存储 | 连接器自行管理 | Harness 凭据库（`records`），自动续期 |
 | 需要开着 Figma 桌面端 | 否（托管 MCP） | 否 |
 | 技能 | 7 个，Figma 官方撰写 | 4 个，针对这些工具重写 |
@@ -227,13 +224,17 @@ MCP 桥的 HTTP 传输只支持自定义 header，没有 OAuth 流程，
 - **导出会落盘。** 截图写在 `outputDir`（默认 `<工作区>/.dsh-figma/`）下，
   记得加进 `.gitignore`。当当前模型支持图片输入时，图片也会同时作为附件内联。
 - **限流是 Figma 的。** 客户端会对 429/5xx 退避重试，但逐节点遍历大文件仍可能触发限流。
-- **OAuth 需要凭据库与 web server。** 两者在默认的 web profile 里都有。
-  没有它们的纯工具组合仍可用 PAT 工作。
+- **登录需要凭据库与 web server。** 两者在默认的 web profile 里都有。
+  纯工具组合仍会注册工具，但无法登录，并且会明确说明。
+- **内置的 OAuth Secret 是公开的。** 任何安装此包的人都能读到。它只授予上面列出的权限范围，
+  部署可以通过配置项或环境变量换成自己的客户端来轮换。
+- **重定向端口必须已登记。** Figma 精确匹配重定向地址，所以跑在未登记端口上的 GUI
+  必须先把该端口加进应用，或用 `callbackPort` 固定，否则无法完成登录。
 
 ## 开发
 
 ```sh
-npm test                        # 113 个单元 + 集成测试，不联网
+npm test                        # 116 个单元 + 集成测试，不联网
 node scripts/smoke.mjs          # 在真实 Cordis 上下文中挂载并断言注册结果
 node scripts/routes-smoke.mjs   # 对着真实 WebServer 跑一遍 OAuth 路由
 ```
