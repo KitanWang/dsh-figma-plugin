@@ -265,6 +265,63 @@ test('a PAT connection is reported as such with its refresh caveat', async () =>
   assert.match(joined, /switch to OAuth sign-in/);
 });
 
+test('OAuth setup reads as optional — not a blocker — while a PAT already works', async () => {
+  const { joined } = await renderSlot(
+    'settings.section',
+    status({ mode: 'pat', connected: true, personalAccessToken: true, clientConfigured: false, clientId: null, clientSecretSet: false }),
+  );
+  // The upgrade path is offered, but framed as optional rather than required.
+  assert.match(joined, /Optional: switch to OAuth sign-in/);
+  assert.match(joined, /already works/);
+  assert.doesNotMatch(joined, /An OAuth app is required first/);
+});
+
+test('OAuth setup reads as required when nothing else can authenticate', async () => {
+  const { joined } = await renderSlot('settings.section', status({ clientConfigured: false, clientId: null, clientSecretSet: false }));
+  assert.match(joined, /An OAuth app is required first/);
+  assert.doesNotMatch(joined, /Optional: switch to OAuth sign-in/);
+});
+
+test('the setup form saves and continues into authorization in one action', async () => {
+  const { registrations } = mount();
+  const registration = registrations.find((entry) => entry.options.name === 'settings.section');
+  const { store } = registration.injected;
+
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body });
+    if (init?.method === 'POST') {
+      return { ok: true, status: 200, text: async () => JSON.stringify({ authorizationUrl: 'https://www.figma.com/oauth?x=1', state: 's' }) };
+    }
+    return { ok: true, status: 200, text: async () => JSON.stringify(status({ clientConfigured: false, clientId: null })) };
+  };
+  await store.refresh({});
+
+  // The store must hand the URL back so the caller can open Figma's page;
+  // otherwise the saved attempt sits pending with nobody sent to consent.
+  const result = await store.saveClient('panel-id', 'panel-secret');
+  assert.equal(result.saved, true);
+  assert.equal(result.authorizationUrl, 'https://www.figma.com/oauth?x=1');
+  const posted = calls.find((call) => call.method === 'POST');
+  assert.match(posted.url, /\/figma\/api\/v1\/connect$/);
+  assert.deepEqual(JSON.parse(posted.body), { clientId: 'panel-id', clientSecret: 'panel-secret' });
+});
+
+test('a failed credential save reports the error and offers no URL', async () => {
+  const { registrations } = mount();
+  const registration = registrations.find((entry) => entry.options.name === 'settings.section');
+  const { store } = registration.injected;
+  globalThis.fetch = async (_url, init) => {
+    if (init?.method === 'POST') return { ok: false, status: 400, text: async () => JSON.stringify({ error: 'bad credentials' }) };
+    return { ok: true, status: 200, text: async () => JSON.stringify(status({ clientConfigured: false })) };
+  };
+  await store.refresh({});
+  const result = await store.saveClient('id', 'secret');
+  assert.equal(result.saved, false);
+  assert.equal(result.authorizationUrl, null);
+  assert.equal(store.getSnapshot().error, 'bad credentials');
+});
+
 test('a deployment without a credential store explains why sign-in is unavailable', async () => {
   const { joined } = await renderSlot('settings.section', status({ oauthSupported: false, clientConfigured: false }));
   assert.match(joined, /mounts no credential store/);
