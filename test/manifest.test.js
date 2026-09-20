@@ -82,3 +82,29 @@ test('the repository metadata points at a github repo, not a placeholder', () =>
   assert.match(url, /^git\+https:\/\/github\.com\/[^/]+\/[^/]+\.git$/, 'a real repository URL');
   assert.equal(url.includes('kitan/dsh-figma'), false, 'the old placeholder URL must be gone');
 });
+
+test('the bundle patch mounts the plugin under its own package name', () => {
+  // The patch row's `name:` is the module specifier the loader resolves. A
+  // rename that updates package.json but not this line leaves the plugin
+  // uninstallable — the row resolves to nothing, and nothing loads. This is
+  // invisible to a unit test that imports ./lib/index.js directly.
+  const patch = read('cordis.patch.yml');
+  const rows = patch
+    .split('\n')
+    .map((line) => /^\s*-?\s*name:\s*['"]?([^'"\s]+)['"]?\s*$/.exec(line))
+    .filter(Boolean)
+    .map((match) => match[1]);
+  const names = rows.filter((name) => !name.startsWith('@deepseek-ai/'));
+  assert.ok(names.length > 0, 'the patch must mount at least one plugin row');
+  for (const name of names) {
+    assert.equal(name, pkg.name, `the patch mounts "${name}" but the package is "${pkg.name}"`);
+  }
+});
+
+test('the patch file parses and inserts a row with the expected id', () => {
+  // A YAML syntax error here fails the whole profile boot, so it is worth
+  // asserting the shape rather than only the string.
+  const patch = read('cordis.patch.yml');
+  assert.match(patch, /^- insert:/m, 'the patch is a top-level insert list');
+  assert.match(patch, /id: figma\b/, 'the row keeps the stable id `figma`');
+});
