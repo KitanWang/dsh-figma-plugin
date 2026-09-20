@@ -75,11 +75,38 @@ function tokenFetch(body = { access_token: 'at', refresh_token: 'rt', expires_in
   return impl;
 }
 
-/** Build a connection with a stubbed fetch and in-memory store. */
+/**
+ * Build a connection with a stubbed fetch and in-memory store.
+ *
+ * The OAuth client is injected rather than read from the shipped module, so
+ * these tests pin the logic and not whatever credentials a build happens to
+ * carry. Pass `app: null` to model a build with no client at all, and
+ * `resolveApp` to inject a different resolver entirely.
+ */
 function makeConnection(options = {}) {
   const credentials = options.credentials ?? stubCredentials();
   const fetchImpl = options.fetch ?? tokenFetch();
-  const connection = new FigmaConnection(stubCtx({ credentials }), config(options.config), { fetch: fetchImpl });
+  const app = options.app === undefined ? TEST_CLIENT : options.app;
+  const resolveApp =
+    options.resolveApp ??
+    ((cfg) => {
+      // Mirrors resolveOAuthApp's precedence: config, then environment, then
+      // the build's app; either half missing means "no usable client".
+      const pick = (configured, envName, builtIn) => {
+        for (const candidate of [configured, process.env?.[envName], builtIn]) {
+          if (typeof candidate === 'string' && candidate.trim().length > 0) return candidate.trim();
+        }
+        return '';
+      };
+      const clientId = pick(cfg?.clientId, 'FIGMA_CLIENT_ID', app?.clientId);
+      const clientSecret = pick(cfg?.clientSecret, 'FIGMA_CLIENT_SECRET', app?.clientSecret);
+      if (clientId === '' || clientSecret === '') return undefined;
+      return { clientId, clientSecret };
+    });
+  const connection = new FigmaConnection(stubCtx({ credentials }), config(options.config), {
+    fetch: fetchImpl,
+    resolveApp,
+  });
   connection.setRedirectUri('http://127.0.0.1:3080/figma/oauth/callback');
   return { connection, credentials, fetch: fetchImpl };
 }
@@ -209,10 +236,8 @@ test('beginAuthorization returns a Figma URL carrying state and PKCE', async () 
 });
 
 test('beginAuthorization fails clearly when the build carries no OAuth client', async () => {
-  await withEnv({ FIGMA_CLIENT_ID: undefined, FIGMA_CLIENT_SECRET: undefined }, async () => {
-    const { connection } = makeConnection({ config: { clientId: '', clientSecret: '' } });
-    await assert.rejects(() => connection.beginAuthorization(), /carries no Figma OAuth client/);
-  });
+  const { connection } = makeConnection({ app: null, config: { clientId: '', clientSecret: '' } });
+  await assert.rejects(() => connection.beginAuthorization(), /carries no Figma OAuth client/);
 });
 
 test('the full callback completes an authorization and stores the grant', async () => {
@@ -282,12 +307,10 @@ test('status reports connection state without any credential material', async ()
 });
 
 test('status reports a deployment with no OAuth client as unavailable', async () => {
-  await withEnv({ FIGMA_CLIENT_ID: undefined, FIGMA_CLIENT_SECRET: undefined }, async () => {
-    const { connection } = makeConnection({ config: { clientId: '', clientSecret: '' } });
-    const status = await connection.status({});
-    assert.equal(status.available, false, 'the UI must tell a deployment fault from a signed-out user');
-    assert.equal(status.connected, false);
-  });
+  const { connection } = makeConnection({ app: null, config: { clientId: '', clientSecret: '' } });
+  const status = await connection.status({});
+  assert.equal(status.available, false, 'the UI must tell a deployment fault from a signed-out user');
+  assert.equal(status.connected, false);
 });
 
 test('status reports a missing credential store as unavailable', async () => {
@@ -318,18 +341,44 @@ test('the authorized account is reported only when asked, and never a token', as
   assert.equal(JSON.stringify(verified).includes('secret-access'), false);
 });
 
-test('the built-in OAuth app resolves from config or the environment', async () => {
+test('the OAuth app resolves from explicit config first', () => {
   assert.deepEqual(resolveOAuthApp({ clientId: 'a', clientSecret: 'b' }), { clientId: 'a', clientSecret: 'b' });
+});
+
+test('the OAuth app falls back to the environment when config is empty', async () => {
+  // Clear the shipped values' effect by overriding both halves from the env.
   await withEnv({ FIGMA_CLIENT_ID: 'env-id', FIGMA_CLIENT_SECRET: 'env-secret' }, async () => {
-    assert.deepEqual(resolveOAuthApp({}), { clientId: 'env-id', clientSecret: 'env-secret' });
+    const resolved = resolveOAuthApp({});
+    assert.equal(resolved.clientId, 'env-id');
+    assert.equal(resolved.clientSecret, 'env-secret');
     // Explicit config still wins over the environment.
-    assert.deepEqual(resolveOAuthApp({ clientId: 'cfg' }), { clientId: 'cfg', clientSecret: 'env-secret' });
+    const mixed = resolveOAuthApp({ clientId: 'cfg' });
+    assert.equal(mixed.clientId, 'cfg');
+    assert.equal(mixed.clientSecret, 'env-secret');
   });
 });
 
-test('a half-configured OAuth app counts as none, rather than failing at Figma', async () => {
-  await withEnv({ FIGMA_CLIENT_ID: undefined, FIGMA_CLIENT_SECRET: undefined }, async () => {
-    assert.equal(resolveOAuthApp({ clientId: 'only-id' }), undefined);
-    assert.equal(resolveOAuthApp({ clientSecret: 'only-secret' }), undefined);
+test('a half-configured OAuth client counts as none, rather than failing at Figma', () => {
+  const { connection } = makeConnection({ app: { clientId: 'only-id' }, config: { clientId: '', clientSecret: '' } });
+  assert.equal(connection.client(), undefined);
+  assert.equal(connection.appConfigured, false);
+});
+
+test('the environment can rotate the shipped OAuth client without editing the package', async () => {
+  // A deployment that must rotate a leaked secret sets these two variables;
+  // they have to beat the values shipped in lib/oauth-app.js, or rotation
+  // would be impossible.
+  await withEnv({ FIGMA_CLIENT_ID: 'rotated-id', FIGMA_CLIENT_SECRET: 'rotated-secret' }, async () => {
+    const resolved = resolveOAuthApp({});
+    assert.equal(resolved.clientId, 'rotated-id');
+    assert.equal(resolved.clientSecret, 'rotated-secret');
+  });
+});
+
+test('explicit config still outranks the environment', async () => {
+  await withEnv({ FIGMA_CLIENT_ID: 'env-id', FIGMA_CLIENT_SECRET: 'env-secret' }, async () => {
+    const resolved = resolveOAuthApp({ clientId: 'cfg-id', clientSecret: 'cfg-secret' });
+    assert.equal(resolved.clientId, 'cfg-id');
+    assert.equal(resolved.clientSecret, 'cfg-secret');
   });
 });

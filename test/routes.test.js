@@ -57,10 +57,20 @@ function config(overrides = {}) {
 /** Build a connection whose token endpoints are stubbed. */
 function makeConnection(options = {}) {
   const credentials = options.credentials ?? stubCredentials();
+  // Pin the OAuth client rather than reading the shipped module, so these
+  // tests hold whatever credentials a build happens to carry. `app: null`
+  // models a build with no client at all.
+  const app = options.app === undefined ? { clientId: 'builtin-client', clientSecret: 'builtin-secret' } : options.app;
   const connection = new FigmaConnection({ get: (name) => (name === 'credentials' ? credentials : undefined) }, config(options.config), {
     fetch:
       options.fetch ??
       (async () => ({ ok: true, status: 200, text: async () => JSON.stringify({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 }) })),
+    resolveApp: (cfg) => {
+      const clientId = (cfg?.clientId ?? '').trim() || (app?.clientId ?? '');
+      const clientSecret = (cfg?.clientSecret ?? '').trim() || (app?.clientSecret ?? '');
+      if (clientId === '' || clientSecret === '') return undefined;
+      return { clientId, clientSecret };
+    },
   });
   connection.setRedirectUri('http://127.0.0.1:3080/figma/oauth/callback');
   return { connection, credentials };
@@ -169,7 +179,7 @@ test('a mutating route refuses a request with no Origin at all', async () => {
 test('the connect route ignores client credentials posted by a caller', async () => {
   // There is no user-supplied client credential any more, so a body must not be
   // able to substitute one.
-  const { connection } = makeConnection({ config: { clientId: '', clientSecret: '' } });
+  const { connection } = makeConnection({ app: null, config: { clientId: '', clientSecret: '' } });
   const handler = createApiHandler(connection, { prefix: API_BASE });
   const response = await request(handler, `${API_BASE}/connect`, {
     method: 'POST',
