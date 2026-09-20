@@ -118,7 +118,12 @@ Agent 会调用 `figma_get_design_context`，读大纲和截图，先看仓库�
 
 默认权限范围为 `current_user:read`、`file_content:read`、`file_metadata:read`、
 `file_comments:read`、`file_comments:write`、`file_dev_resources:read`、
-`file_variables:read`、`library_content:read`、`library_assets:read`。
+`library_content:read`、`library_assets:read`。
+
+只要请求了应用未启用的权限，Figma 就会直接让整个授权失败，所以**上面这些必须全部
+在应用的 OAuth scopes 页面勾选**。`file_variables:read` 被刻意排除：Figma 将它标记为
+企业版专属，其他套餐根本无法启用，一旦请求就会让登录彻底失败。企业版如需使用
+`figma_get_variables`，请在应用上启用该权限，并通过 `scopes` 配置项加上它。
 
 ### 插件自带的 OAuth 应用
 

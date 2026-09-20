@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
   DEFAULT_SCOPES,
+  ENTERPRISE_VARIABLES_SCOPE,
   FigmaOAuthError,
   asGrant,
   authorizationUrl,
@@ -226,4 +227,36 @@ test('isLoopbackRedirect accepts only absolute loopback http(s) URLs', () => {
   assert.equal(isLoopbackRedirect('file:///etc/passwd'), false);
   assert.equal(isLoopbackRedirect('not a url'), false);
   assert.equal(isLoopbackRedirect('/figma/oauth/callback'), false);
+});
+
+test('the default scopes exclude Enterprise-only scopes that would fail sign-in', () => {
+  // Figma fails the entire authorization when asked for a scope the app cannot
+  // enable ("Invalid scopes for app"). file_variables:read is Enterprise-only,
+  // so requesting it by default would break sign-in for everyone else.
+  const scopes = DEFAULT_SCOPES.split(' ');
+  assert.equal(
+    scopes.includes('file_variables:read'),
+    false,
+    'file_variables:read must not be requested by default; add it through the scopes config on Enterprise',
+  );
+  assert.equal(ENTERPRISE_VARIABLES_SCOPE, 'file_variables:read');
+});
+
+test('the default scopes cover every scope the tools need, and no more', () => {
+  const scopes = DEFAULT_SCOPES.split(' ').filter((scope) => scope.length > 0);
+  // Every tool's endpoint group must be reachable.
+  for (const required of [
+    'current_user:read',
+    'file_content:read',
+    'file_metadata:read',
+    'file_comments:read',
+    'file_comments:write',
+    'file_dev_resources:read',
+    'library_content:read',
+    'library_assets:read',
+  ]) {
+    assert.ok(scopes.includes(required), `${required} is needed by a bundled tool`);
+  }
+  // No duplicates, and nothing outside the documented set.
+  assert.equal(new Set(scopes).size, scopes.length, 'no scope may repeat');
 });

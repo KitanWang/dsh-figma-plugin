@@ -137,8 +137,14 @@ All keys are optional.
 
 The default scopes are `current_user:read`, `file_content:read`,
 `file_metadata:read`, `file_comments:read`, `file_comments:write`,
-`file_dev_resources:read`, `file_variables:read`, `library_content:read`, and
-`library_assets:read`.
+`file_dev_resources:read`, `library_content:read`, and `library_assets:read`.
+
+Figma fails the whole authorization when it is asked for a scope the app does
+not have enabled, so **these must all be selected on the app's OAuth scopes
+page**. `file_variables:read` is intentionally excluded because Figma marks it
+Enterprise-only: on any other plan it cannot be enabled at all, and requesting
+it would break sign-in entirely. On Enterprise, enable it on the app and add it
+through the `scopes` config to make `figma_get_variables` work.
 
 ### The plugin's OAuth app
 
