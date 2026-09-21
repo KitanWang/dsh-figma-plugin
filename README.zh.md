@@ -1,4 +1,4 @@
-# dsh-figma
+# dsh-figma-plugin
 
 <img src="assets/icon-256.png" width="96" alt="一个选中框里叠放着内容层">
 
@@ -17,14 +17,13 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add github:KitanWang/dsh-figma
+dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
 ```
 
 然后重启 `dsh web`（新增的 bundle 在启动时合成）。需要 Node.js 20+ 与 DeepSeek Harness。
 
-> **请从 GitHub 安装，不要从 npm 安装。** npm 上的 `dsh-figma` 是他人占用的、
-> 与本插件无关的包，按包名从 npm 安装会装到别的东西。
-> 本插件以 GitHub 仓库形式分发，未发布到 npm。
+本插件以这个 GitHub 仓库形式分发，即上面那条命令。它没有发布到 npm；
+从 GitHub 安装是受支持的方式，插件市场的一键安装走的也是这条路。
 
 ## 连接 Figma
 
@@ -108,7 +107,7 @@ Agent 会调用 `figma_get_design_context`，读大纲和截图，先看仓库�
 | `apiBaseUrl` | `https://api.figma.com` | 走代理时覆盖。 |
 | `requestTimeoutMs` | `30000` | 单次请求超时。 |
 | `maxRetries` | `2` | 429/5xx 重试次数，遵循 `Retry-After`。 |
-| `outputDir` | `.dsh-figma` | 导出目录；相对路径相对会话工作区解析。 |
+| `outputDir` | `.dsh-figma-plugin` | 导出目录；相对路径相对会话工作区解析。 |
 | `maxNodes` | `400` | 设计上下文投影的默认节点预算。 |
 | `maxDepth` | `8` | 默认深度预算。 |
 | `skills` | `true` | 是否注册内置技能。 |
@@ -178,7 +177,7 @@ DSH 有同样的**原语** —— 技能注册表（`ctx.skills`）、工具注�
 本插件用原生方式补上这个空缺，而不是去代理 Figma 的 MCP Server，
 因此不需要开着 Figma 客户端：
 
-| | Codex + Figma 插件 | dsh-figma |
+| | Codex + Figma 插件 | dsh-figma-plugin |
 | --- | --- | --- |
 | 读设计 | Figma MCP Server（OAuth） | Figma REST API（OAuth） |
 | 登录方式 | 浏览器授权，由 Figma 托管页面 | 浏览器授权，由 Figma 托管页面 |
@@ -231,7 +230,7 @@ MCP 桥的 HTTP 传输只支持自定义 header，没有 OAuth 流程，
   套餐不够时会明确报错；`figma_get_styles` 仍然可用。
 - **Code Connect 是「指导」而非「自动化」。** Figma REST API 里没有 Code Connect 接口。
   技能负责读组件清单并写出模板文件；发布交给 Figma CLI。
-- **导出会落盘。** 截图写在 `outputDir`（默认 `<工作区>/.dsh-figma/`）下，
+- **导出会落盘。** 截图写在 `outputDir`（默认 `<工作区>/.dsh-figma-plugin/`）下，
   记得加进 `.gitignore`。当当前模型支持图片输入时，图片也会同时作为附件内联。
 - **限流是 Figma 的。** 客户端会对 429/5xx 退避重试，但逐节点遍历大文件仍可能触发限流。
 - **登录需要凭据库与 web server。** 两者在默认的 web profile 里都有。

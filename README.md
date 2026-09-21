@@ -1,4 +1,4 @@
-# dsh-figma
+# dsh-figma-plugin
 
 <img src="assets/icon-256.png" width="96" alt="A selection frame holding stacked layers">
 
@@ -20,16 +20,15 @@ the same and what is different.
 ## Install
 
 ```sh
-dsh plugin --profile web add github:KitanWang/dsh-figma
+dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
 ```
 
 Then restart `dsh web` (a newly added bundle is composed at boot). Requires
 Node.js 20+ and DeepSeek Harness.
 
-> **Install from GitHub, not from npm.** The npm name `dsh-figma` is held by an
-> unrelated reserved package, so a bare npm install of that name would fetch
-> something else. This plugin is distributed as a GitHub repository and is not
-> published to npm.
+The plugin is distributed as this GitHub repository, which is the command above.
+It is not published to npm; installing from GitHub is the supported path and
+works with the plugin market's one-click install.
 
 ## Connect Figma
 
@@ -129,7 +128,7 @@ All keys are optional.
 | `apiBaseUrl` | `https://api.figma.com` | Override for a proxy. |
 | `requestTimeoutMs` | `30000` | Per-request timeout. |
 | `maxRetries` | `2` | Retries for 429/5xx, honouring `Retry-After`. |
-| `outputDir` | `.dsh-figma` | Where exports are written; relative paths resolve against the session workspace. |
+| `outputDir` | `.dsh-figma-plugin` | Where exports are written; relative paths resolve against the session workspace. |
 | `maxNodes` | `400` | Default node budget for a design-context projection. |
 | `maxDepth` | `8` | Default depth budget. |
 | `skills` | `true` | Register the bundled skills. |
@@ -215,7 +214,7 @@ registry (`ctx.tools`), subagents, and an MCP bridge
 fills that gap natively rather than by proxying Figma's MCP server, so it needs
 no running Figma desktop:
 
-| | Codex + Figma plugin | dsh-figma |
+| | Codex + Figma plugin | dsh-figma-plugin |
 | --- | --- | --- |
 | Design reads | Figma MCP server (OAuth) | Figma REST API (OAuth) |
 | Sign-in | browser authorization, hosted by Figma | browser authorization, hosted by Figma |
@@ -277,7 +276,7 @@ of your own.
   in the Figma REST API. The skill reads the component inventory and writes
   template files; publishing them is the Figma CLI's job.
 - **Exports land on disk.** Screenshots are written under `outputDir`
-  (default `<workspace>/.dsh-figma/`). Add that to your `.gitignore`. An image
+  (default `<workspace>/.dsh-figma-plugin/`). Add that to your `.gitignore`. An image
   is also attached inline whenever the current model accepts image input.
 - **Rate limits are Figma's.** The client retries 429/5xx with backoff, but a
   large file walked node by node can still hit the limit.

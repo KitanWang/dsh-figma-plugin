@@ -39,4 +39,4 @@
 # `figma_login` then reports that sign-in is unavailable.
 - insert:
     - id: figma
-      name: 'dsh-figma'
+      name: 'dsh-figma-plugin'

@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Open a private report through GitHub's
-[Security Advisories](https://github.com/KitanWang/dsh-figma/security/advisories/new)
+[Security Advisories](https://github.com/KitanWang/dsh-figma-plugin/security/advisories/new)
 rather than a public issue. If you cannot use that, open a minimal issue asking
 for a private channel and include no details.
 
