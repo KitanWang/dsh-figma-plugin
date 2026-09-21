@@ -121,10 +121,9 @@ What it does not do:
 
 For a reviewer verifying the integration:
 
-1. **Install.** Requires Node.js 20+ and DeepSeek Harness (`dsh`). Install from
-   the public GitHub repository — the npm name `dsh-figma-plugin` belongs to an
-   unrelated reserved package, so the GitHub form is the one that installs this
-   integration:
+1. **Install.** Requires Node.js 20+ and DeepSeek Harness (`dsh`). The
+   integration is distributed as this public GitHub repository (it is not
+   published to npm), so install with the GitHub form:
 
    ```sh
    dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
@@ -167,6 +166,91 @@ on the app and add it via the plugin's `scopes` config to exercise that tool.
 
 **No credentials to prepare.** The reviewer needs only a Figma account; there is
 no test token, no sandbox file, and no trial signup.
+
+### The "Testing instructions" form step
+
+The submission form's third page has its own fields. Fill them exactly like
+this:
+
+**Testing instructions** (the rich-text box) — paste the plain-text block
+further down this section. It is written without markup because the form
+renders `**` and backticks literally.
+
+**Testing video URL** — leave empty. There is no hosted service to demo; the
+whole integration is a local plugin whose only external interaction is Figma's
+own consent page, and the steps above describe it in a few lines. If a video is
+required, a screen recording of steps 2-4 in a local GUI is sufficient.
+
+**Testing credentials** — choose **"Create a free account (or no account
+needed)"**, because **no account with us exists to create**. This integration
+has no backend, no signup, and no hosted service: it is a plugin the reviewer
+runs on their own machine. The reviewer uses *their own* Figma account at the
+sign-in step.
+
+**Link to get started** — the public repository, which is where a reviewer
+obtains and runs the integration:
+
+```
+https://github.com/KitanWang/dsh-figma-plugin
+```
+
+Do **not** select "Use a test account": there is no test account to hand out,
+and none is needed.
+
+---
+
+### If the form renders `**` literally
+
+The form's rich-text box treats markdown as plain text, so the `**` and
+backticks in the steps above show up verbatim. Paste this version instead — it
+is the same content without markup:
+
+```text
+Testing instructions for DeepSeek Harness - Figma
+
+This integration is a local plugin for DeepSeek Harness (dsh). It has no
+backend and no signup; the reviewer uses their own Figma account.
+
+1. Install. Requires Node.js 20+ and DeepSeek Harness. Run:
+
+     dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
+
+   Then start the GUI with: dsh web
+   It serves on http://127.0.0.1:3080
+
+2. Open the connection page. In the GUI, open Settings, then the Figma section.
+
+3. Sign in. Press the "Connect Figma" button. A browser tab opens Figma's own
+   sign-in and consent page. Sign in with your Figma account and approve the
+   requested scopes. The tab lands on a local confirmation page, and the
+   Settings page changes to "Connected", showing the authorized account.
+   Note: the consent screen must be opened in a real browser; Figma rejects
+   embedded webviews.
+
+4. Verify the read path. In the GUI chat, paste any Figma design link, for
+   example:
+
+     Read this design and list the frames:
+     https://www.figma.com/design/FILE_KEY/Name?node-id=NODE_ID
+
+   The agent reads the file and returns the frame's node tree, the design
+   variables it is bound to, and a rendered screenshot of the frame.
+
+5. Verify the credential persists. Restart dsh web and reopen Settings, Figma.
+   The page still reports "Connected" from the stored credential.
+
+6. Verify reconnect. Press "Reconnect" and approve again; the stored credential
+   is replaced.
+
+Note on file_variables:read. That scope is Enterprise-only and is not requested
+by default, because asking for a scope an app cannot enable fails the whole
+authorization. On a non-Enterprise account the variables tool reports a plan
+limitation while every other tool works. On Enterprise, enable the scope on the
+app and add it through the plugin's scopes setting to exercise that tool.
+
+No credentials to prepare. The reviewer needs only a Figma account: there is no
+test token, no sandbox file, and no signup.
+```
 
 ---
 
