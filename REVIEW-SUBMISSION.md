@@ -14,8 +14,14 @@ credentials live in [`lib/oauth-app.js`](lib/oauth-app.js).
 **App name**
 
 ```
-DeepSeek Harness — Figma
+dsh-figma
 ```
+
+The name as registered at figma.com/developers/apps, and what a user sees on
+the consent screen. It intentionally differs from the package name
+(`dsh-figma-plugin`), which is what `dsh plugin add` resolves: the app name is
+read by Figma users who have never seen the package. The two are independent —
+nothing in the code reads the app name, only the client id.
 
 **Logo**
 
@@ -85,9 +91,9 @@ Read a Figma design in your coding agent: frames, components, variables, and a r
 **Long description** (for the review form and the Community page)
 
 ```
-DeepSeek Harness — Figma connects a Figma account to the DeepSeek Harness
-coding agent. Hand the agent a Figma link and it can read the design and write
-UI code that matches it.
+dsh-figma connects a Figma account to the DeepSeek Harness coding agent. Hand
+the agent a Figma link and it can read the design and write UI code that
+matches it.
 
 What it reads:
 - A frame's node tree: auto-layout, sizing, spacing, paints, and typography.
@@ -206,7 +212,7 @@ backticks in the steps above show up verbatim. Paste this version instead — it
 is the same content without markup:
 
 ```text
-Testing instructions for DeepSeek Harness - Figma
+Testing instructions for dsh-figma
 
 This integration is a local plugin for DeepSeek Harness (dsh). It has no
 backend and no signup; the reviewer uses their own Figma account.
