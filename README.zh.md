@@ -1,4 +1,4 @@
-# dsh-figma-plugin
+# dsh-figma
 
 <img src="assets/icon-256.png" width="96" alt="一个选中框里叠放着内容层">
 
@@ -16,16 +16,15 @@
 
 ## 安装
 
-直接从 GitHub 安装，无需发布到 npm：
-
 ```sh
-dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
+dsh plugin --profile web add github:KitanWang/dsh-figma
 ```
 
-然后重启 `dsh web`（新增的 bundle 在启动时合成）。
+然后重启 `dsh web`（新增的 bundle 在启动时合成）。需要 Node.js 20+ 与 DeepSeek Harness。
 
-需要 Node.js 20+ 与 DeepSeek Harness。若之后发布到 npm，
-`dsh plugin --profile web add dsh-figma-plugin` 同样可用。
+> **请从 GitHub 安装，不要从 npm 安装。** npm 上的 `dsh-figma` 是他人占用的、
+> 与本插件无关的包，按包名从 npm 安装会装到别的东西。
+> 本插件以 GitHub 仓库形式分发，未发布到 npm。
 
 ## 连接 Figma
 

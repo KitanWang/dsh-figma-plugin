@@ -121,10 +121,13 @@ What it does not do:
 
 For a reviewer verifying the integration:
 
-1. **Install.** Requires Node.js 20+ and DeepSeek Harness (`dsh`):
+1. **Install.** Requires Node.js 20+ and DeepSeek Harness (`dsh`). Install from
+   the public GitHub repository — the npm name `dsh-figma` belongs to an
+   unrelated reserved package, so the GitHub form is the one that installs this
+   integration:
 
    ```sh
-   dsh plugin --profile web add dsh-figma-plugin
+   dsh plugin --profile web add github:KitanWang/dsh-figma
    ```
 
    Then start the GUI: `dsh web` (serves on `http://127.0.0.1:3080`).

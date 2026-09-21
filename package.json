@@ -1,10 +1,10 @@
 {
-  "name": "dsh-figma-plugin",
+  "name": "dsh-figma",
   "version": "0.3.2",
+  "private": true,
   "description": "Figma design context for DeepSeek Harness: read frames, components, variables and screenshots straight from the Figma REST API, plus bundled design-to-code skills. · 让 DSH 直接读懂 Figma 设计稿。",
   "type": "module",
   "main": "lib/index.js",
-  "types": "lib/types/index.d.ts",
   "license": "MIT",
   "engines": {
     "node": ">=20"
@@ -20,7 +20,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/KitanWang/dsh-figma-plugin.git"
+    "url": "git+https://github.com/KitanWang/dsh-figma.git"
   },
   "files": [
     "lib",
@@ -36,7 +36,6 @@
   ],
   "exports": {
     ".": {
-      "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
     "./client": "./lib/client.js",
@@ -101,8 +100,8 @@
       "optional": true
     }
   },
-  "homepage": "https://github.com/KitanWang/dsh-figma-plugin#readme",
+  "homepage": "https://github.com/KitanWang/dsh-figma#readme",
   "bugs": {
-    "url": "https://github.com/KitanWang/dsh-figma-plugin/issues"
+    "url": "https://github.com/KitanWang/dsh-figma/issues"
   }
 }

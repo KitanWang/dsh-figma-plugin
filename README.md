@@ -1,4 +1,4 @@
-# dsh-figma-plugin
+# dsh-figma
 
 <img src="assets/icon-256.png" width="96" alt="A selection frame holding stacked layers">
 
@@ -19,16 +19,17 @@ the same and what is different.
 
 ## Install
 
-Installs straight from GitHub — no registry publish needed:
-
 ```sh
-dsh plugin --profile web add github:KitanWang/dsh-figma-plugin
+dsh plugin --profile web add github:KitanWang/dsh-figma
 ```
 
-Then restart `dsh web` (a newly added bundle is composed at boot).
+Then restart `dsh web` (a newly added bundle is composed at boot). Requires
+Node.js 20+ and DeepSeek Harness.
 
-Requires Node.js 20+ and DeepSeek Harness. If the plugin is published to npm
-later, `dsh plugin --profile web add dsh-figma-plugin` will work too.
+> **Install from GitHub, not from npm.** The npm name `dsh-figma` is held by an
+> unrelated reserved package, so a bare npm install of that name would fetch
+> something else. This plugin is distributed as a GitHub repository and is not
+> published to npm.
 
 ## Connect Figma
 

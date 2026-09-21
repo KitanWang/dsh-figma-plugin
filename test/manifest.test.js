@@ -46,9 +46,20 @@ test('the package entry and every exported subpath resolve to a real file', () =
   assert.ok(existsSync(new URL(pkg.main, root)), `main ${pkg.main} must exist`);
   for (const [subpath, target] of Object.entries(pkg.exports)) {
     if (subpath === './package.json') continue;
-    const value = typeof target === 'string' ? target : target.default;
-    assert.ok(existsSync(new URL(value.slice(2), root)), `${subpath} -> ${value} must exist`);
+    // Every condition, not just the default: a dangling `types` path makes
+    // editors and resolvers report the package as broken even though the
+    // runtime entry works.
+    const conditions = typeof target === 'string' ? [target] : Object.values(target);
+    for (const value of conditions) {
+      assert.equal(typeof value, 'string', `${subpath} condition must be a path`);
+      assert.ok(existsSync(new URL(value.slice(2), root)), `${subpath} -> ${value} must exist`);
+    }
   }
+});
+
+test('the top-level types field, when present, points at a real file', () => {
+  if (pkg.types === undefined) return;
+  assert.ok(existsSync(new URL(pkg.types, root)), `types ${pkg.types} must exist`);
 });
 
 test('the files list is what a consumer actually needs, and nothing private', () => {
@@ -65,13 +76,19 @@ test('the files list is what a consumer actually needs, and nothing private', ()
   // form is what resolves.
   const repo = /github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/.exec(pkg.repository.url)?.[1];
   assert.ok(repo !== undefined, 'the repository owner/name must be parseable');
-  for (const doc of ['README.md', 'README.zh.md']) {
+  // Every doc that tells someone how to install must give the GitHub form:
+  // this package is not on npm, and the npm name it would use belongs to an
+  // unrelated package, so a bare `add <name>` installs the wrong thing.
+  for (const doc of ['README.md', 'README.zh.md', 'REVIEW-SUBMISSION.md']) {
     const text = read(doc);
-    assert.ok(
-      text.includes(`add github:${repo}`),
-      `${doc} must show the GitHub install command, which works before any npm publish`,
-    );
-    assert.ok(text.includes(`add ${pkg.name}`), `${doc} must also name the package`);
+    assert.ok(text.includes(`add github:${repo}`), `${doc} must show the working install command`);
+    for (const match of text.matchAll(/dsh plugin --profile \w+ add (\S+)/g)) {
+      assert.equal(
+        match[1],
+        `github:${repo}`,
+        `${doc} tells the reader to install "${match[1]}", which is not this plugin`,
+      );
+    }
   }
 });
 
